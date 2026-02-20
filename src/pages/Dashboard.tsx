@@ -9,7 +9,6 @@ import { useChatHistory } from '../../hooks/useChatHistory';
 import { Menu, Zap, Sparkles, BrainCircuit, Eye, Settings, Bell, Bot, LogOut } from 'lucide-react';
 import { ModelMode } from '../../services/geminiService';
 import { useAuth } from '../context/AuthContext';
-import { logoutUser } from '../services/firebaseAuth';
 import { useNavigate } from 'react-router-dom';
 
 const initialState: AgentState = {
@@ -79,11 +78,6 @@ const Dashboard: React.FC = () => {
     const [modelMode, setModelMode] = useState<ModelMode>('standard');
     const { user } = useAuth();
     const navigate = useNavigate();
-
-    const handleLogout = async () => {
-        await logoutUser();
-        navigate('/');
-    };
 
     const {
         sessions,
@@ -165,23 +159,12 @@ const Dashboard: React.FC = () => {
 
                     {/* Right Actions */}
                     <div className="flex items-center gap-4">
-                        <div className="hidden sm:flex flex-col items-end mr-2">
-                            <span className="text-sm font-bold text-slate-700 dark:text-slate-300">{user?.displayName || 'User'}</span>
-                            <span className="text-[10px] text-slate-500">{user?.email}</span>
-                        </div>
                         <button className="text-slate-400 hover:text-teal-600 dark:text-slate-500 dark:hover:text-teal-400 transition-colors"><Bell className="w-5 h-5" /></button>
                         <button
                             onClick={() => setActiveRightSidebar(!activeRightSidebar)}
                             className="text-slate-400 hover:text-teal-600 dark:text-slate-500 dark:hover:text-teal-400 transition-colors"
                         >
                             <Settings className="w-5 h-5" />
-                        </button>
-                        <button
-                            onClick={handleLogout}
-                            title="Log Out"
-                            className="text-red-400 hover:text-red-600 dark:text-red-500 dark:hover:text-red-400 transition-colors ml-2"
-                        >
-                            <LogOut className="w-5 h-5" />
                         </button>
                     </div>
                 </header>

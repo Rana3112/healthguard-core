@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
 import { MessageSquare, History, LogOut, PlusCircle, Search, Trash2, User, Activity } from 'lucide-react'; // Added Activity for icon variety
 import { ChatSession } from '../types';
+import { useAuth } from '../src/context/AuthContext';
+import { logoutUser } from '../src/services/firebaseAuth';
+import { useNavigate } from 'react-router-dom';
 
 interface SidebarProps {
     onNewChat: () => void;
@@ -52,6 +55,13 @@ function groupSessions(sessions: ChatSession[]): { label: string; items: ChatSes
 const Sidebar: React.FC<SidebarProps> = ({ onNewChat, isOpen, toggleSidebar, sessions, activeSessionId, onLoadChat, onDeleteChat }) => {
     const [searchQuery, setSearchQuery] = useState('');
     const [hoveredId, setHoveredId] = useState<string | null>(null);
+    const { user } = useAuth();
+    const navigate = useNavigate();
+
+    const handleLogout = async () => {
+        await logoutUser();
+        navigate('/');
+    };
 
     const filtered = searchQuery.trim()
         ? sessions.filter(s => s.title.toLowerCase().includes(searchQuery.toLowerCase()))
@@ -168,15 +178,25 @@ const Sidebar: React.FC<SidebarProps> = ({ onNewChat, isOpen, toggleSidebar, ses
 
                     {/* Footer / User Profile */}
                     <div className="p-4 border-t border-slate-200 dark:border-slate-800 mt-auto">
-                        <div className="flex items-center gap-3 p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer group">
-                            <div className="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-500 font-bold overflow-hidden">
-                                <User className="w-5 h-5" />
+                        <div className="flex items-center gap-3 p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors group">
+                            <div className="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-500 font-bold overflow-hidden shrink-0">
+                                {user?.photoURL ? (
+                                    <img src={user.photoURL} alt="Profile" className="w-full h-full object-cover" />
+                                ) : (
+                                    <User className="w-5 h-5" />
+                                )}
                             </div>
                             <div className="flex-1 min-w-0">
-                                <p className="text-sm font-semibold text-slate-700 dark:text-slate-200 truncate group-hover:text-slate-900 dark:group-hover:text-white">Generic User</p>
-                                <p className="text-[10px] font-bold text-teal-600 dark:text-teal-400 uppercase">Pro Plan</p>
+                                <p className="text-sm font-semibold text-slate-700 dark:text-slate-200 truncate">{user?.displayName || 'HealthGuard User'}</p>
+                                <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">{user?.email}</p>
                             </div>
-                            <span className="material-icons-round text-slate-400">logout</span>
+                            <button
+                                onClick={handleLogout}
+                                title="Log Out"
+                                className="p-2 text-slate-400 hover:text-red-500 dark:hover:text-red-400 transition-colors shrink-0"
+                            >
+                                <LogOut className="w-5 h-5" />
+                            </button>
                         </div>
                     </div>
 

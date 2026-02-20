@@ -571,10 +571,10 @@ const FitnessPanel: React.FC = () => {
 
                                                         {/* Large Exercise Visual Banner */}
                                                         {ex.gifUrl && (
-                                                            <div className="w-full aspect-video md:aspect-[21/9] rounded-2xl mb-6 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-inner relative flex items-center justify-center z-10 transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] hover:z-50 hover:scale-[1.15] md:hover:scale-[1.3] hover:-translate-y-2 hover:shadow-[0_40px_80px_-20px_rgba(0,0,0,0.5)] dark:hover:shadow-[0_40px_80px_-20px_rgba(0,0,0,0.9)] hover:ring-[6px] ring-white/90 dark:ring-slate-800/90 cursor-zoom-in overflow-hidden">
+                                                            <div className="w-full rounded-2xl mb-6 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-inner relative flex items-center justify-center z-10 transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] hover:z-50 hover:scale-[1.05] hover:-translate-y-2 hover:shadow-[0_40px_80px_-20px_rgba(0,0,0,0.5)] dark:hover:shadow-[0_40px_80px_-20px_rgba(0,0,0,0.9)] hover:ring-[6px] ring-white/90 dark:ring-slate-800/90 cursor-zoom-in overflow-hidden">
                                                                 <img
                                                                     src={ex.gifUrl}
-                                                                    className="w-full h-full object-cover mix-blend-multiply dark:mix-blend-normal"
+                                                                    className="w-full h-auto object-contain mix-blend-multiply dark:mix-blend-normal"
                                                                     loading="lazy"
                                                                     alt={ex.name}
                                                                 />
@@ -707,8 +707,8 @@ const FitnessPanel: React.FC = () => {
                                                     key={intensity}
                                                     onClick={() => setUserStats({ ...userStats, workoutIntensity: intensity })}
                                                     className={`py-2 px-1 rounded-xl text-[10px] sm:text-xs font-bold transition-all capitalize border ${userStats.workoutIntensity === intensity
-                                                            ? 'bg-teal-500 border-teal-500 text-white shadow-md shadow-teal-500/20'
-                                                            : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-teal-300 dark:hover:border-teal-700 hover:text-teal-600'
+                                                        ? 'bg-teal-500 border-teal-500 text-white shadow-md shadow-teal-500/20'
+                                                        : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-teal-300 dark:hover:border-teal-700 hover:text-teal-600'
                                                         }`}
                                                 >
                                                     {intensity === 'naive' ? 'Beginner' : intensity}
@@ -793,10 +793,10 @@ const FitnessPanel: React.FC = () => {
 
                                                                             {/* Large Exercise Visual Banner */}
                                                                             {ex.gifUrl && (
-                                                                                <div className="w-full aspect-video md:aspect-[21/9] rounded-2xl mb-6 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-inner relative flex items-center justify-center z-10 transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] hover:z-50 hover:scale-[1.15] md:hover:scale-[1.3] hover:-translate-y-2 hover:shadow-[0_40px_80px_-20px_rgba(0,0,0,0.5)] dark:hover:shadow-[0_40px_80px_-20px_rgba(0,0,0,0.9)] hover:ring-[6px] ring-white/90 dark:ring-slate-800/90 cursor-zoom-in overflow-hidden">
+                                                                                <div className="w-full rounded-2xl mb-6 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-inner relative flex items-center justify-center z-10 transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] hover:z-50 hover:scale-[1.05] hover:-translate-y-2 hover:shadow-[0_40px_80px_-20px_rgba(0,0,0,0.5)] dark:hover:shadow-[0_40px_80px_-20px_rgba(0,0,0,0.9)] hover:ring-[6px] ring-white/90 dark:ring-slate-800/90 cursor-zoom-in overflow-hidden">
                                                                                     <img
                                                                                         src={ex.gifUrl}
-                                                                                        className="w-full h-full object-cover mix-blend-multiply dark:mix-blend-normal"
+                                                                                        className="w-full h-auto object-contain mix-blend-multiply dark:mix-blend-normal"
                                                                                         loading="lazy"
                                                                                         alt={ex.name}
                                                                                     />

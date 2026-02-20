@@ -17,6 +17,7 @@ load_dotenv(os.path.join(parent_dir, '.env'))
 load_dotenv(os.path.join(parent_dir, '.env.local'), override=True)
 
 api_key = os.getenv("OPENROUTER_API_KEY")
+groq_api_key = os.getenv("GROQ_API_KEY")
 
 app = Flask(__name__)
 CORS(app)
@@ -620,6 +621,53 @@ def coach_chat():
 
     except Exception as e:
         print(f"Error in coach chat: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/transcribe', methods=['POST'])
+def transcribe_audio():
+    """Transcribe audio using Groq's Whisper API."""
+    if not groq_api_key:
+        return jsonify({"error": "GROQ_API_KEY not configured"}), 500
+        
+    if 'audio' not in request.files:
+        return jsonify({"error": "No audio file provided"}), 400
+        
+    audio_file = request.files['audio']
+    
+    if audio_file.filename == '':
+        return jsonify({"error": "No selected file"}), 400
+        
+    try:
+        import requests as req
+        
+        url = "https://api.groq.com/openai/v1/audio/transcriptions"
+        headers = {
+            "Authorization": f"Bearer {groq_api_key}"
+        }
+        
+        # Groq expects a file tuple: (filename, file_object, content_type)
+        files = {
+            "file": (audio_file.filename, audio_file.read(), audio_file.mimetype)
+        }
+        data = {
+            "model": "whisper-large-v3",
+            "response_format": "json"
+        }
+        
+        resp = req.post(url, headers=headers, files=files, data=data, timeout=30)
+        
+        if resp.status_code != 200:
+            print(f"[Transcribe] Error from Groq: {resp.text}")
+            return jsonify({"error": f"Transcription Error: {resp.text}"}), 500
+            
+        transcription_data = resp.json()
+        text = transcription_data.get('text', '')
+        
+        return jsonify({"text": text.strip()})
+        
+    except Exception as e:
+        print(f"Error in transcribe_audio: {e}")
         return jsonify({"error": str(e)}), 500
 
 

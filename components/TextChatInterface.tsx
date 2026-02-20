@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Mic, Image, Loader2, Sparkles, Activity, Pill, MapPin, Volume2 } from 'lucide-react';
+import { Send, Mic, Image, Loader2, Sparkles, Activity, Pill, MapPin, Volume2, Square } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
@@ -22,8 +22,12 @@ const TextChatInterface: React.FC<TextChatInterfaceProps> = ({ dispatch, message
   const [selectedImage, setSelectedImage] = useState<{ file: File, base64: string } | null>(null);
   const [userLocation, setUserLocation] = useState<{ lat: number, lon: number } | null>(null);
   const [playingMessageId, setPlayingMessageId] = useState<string | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<BlobPart[]>([]);
 
   // Scroll to bottom
   const scrollToBottom = () => {
@@ -48,6 +52,76 @@ const TextChatInterface: React.FC<TextChatInterfaceProps> = ({ dispatch, message
       });
     }
   }, []);
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          audioChunksRef.current.push(e.data);
+        }
+      };
+
+      mediaRecorder.onstop = async () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        await handleAudioUpload(audioBlob);
+        stream.getTracks().forEach((track) => track.stop());
+      };
+
+      mediaRecorder.start();
+      setIsRecording(true);
+    } catch (error) {
+      console.error('Error accessing microphone:', error);
+      alert('Could not access the microphone. Please check your permissions.');
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+    }
+  };
+
+  const toggleRecording = () => {
+    if (isRecording) {
+      stopRecording();
+    } else {
+      startRecording();
+    }
+  };
+
+  const handleAudioUpload = async (audioBlob: Blob) => {
+    setIsTranscribing(true);
+    const formData = new FormData();
+    formData.append('audio', audioBlob, 'recording.webm');
+
+    try {
+      const BACKEND_URL = (import.meta as any).env?.VITE_BACKEND_URL || 'http://localhost:5001';
+      const response = await fetch(`${BACKEND_URL}/api/transcribe`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error('Transcription failed');
+      }
+
+      const data = await response.json();
+      if (data.text) {
+        await handleSend(data.text);
+      }
+    } catch (error) {
+      console.error('Error uploading audio:', error);
+      alert('Failed to transcribe audio.');
+    } finally {
+      setIsTranscribing(false);
+    }
+  };
 
   const handleInitialSend = async () => {
     if (!input.trim() && !selectedImage) return;
@@ -376,8 +450,13 @@ const TextChatInterface: React.FC<TextChatInterfaceProps> = ({ dispatch, message
               </button>
             </div>
 
-            <button className="p-3 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all">
-              <Mic className="w-5 h-5" />
+            <button
+              onClick={toggleRecording}
+              disabled={isTranscribing}
+              className={`p-3 rounded-xl transition-all ${isRecording ? 'text-white bg-red-500 hover:bg-red-600 animate-pulse shadow-md shadow-red-500/30' : 'text-slate-400 hover:text-red-500 hover:bg-red-50'} ${isTranscribing ? 'opacity-50 cursor-not-allowed' : ''}`}
+              title={isRecording ? 'Stop Recording' : 'Voice Input'}
+            >
+              {isTranscribing ? <Loader2 className="w-5 h-5 animate-spin" /> : (isRecording ? <Square className="w-5 h-5 fill-current" /> : <Mic className="w-5 h-5" />)}
             </button>
           </div>
         </div>

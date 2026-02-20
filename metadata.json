@@ -1,0 +1,9 @@
+{
+  "name": "Copy of HealthGuard AI",
+  "description": "A multimodal, agentic healthcare companion providing real-time voice consultations, medical product ordering, and privacy-focused image analysis.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "geolocation"
+  ]
+}

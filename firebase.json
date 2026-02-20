@@ -1,0 +1,11 @@
+{
+  "auth": {
+    "providers": {
+      "emailPassword": true,
+      "googleSignIn": {
+        "oAuthBrandDisplayName": "HealthGuard AI",
+        "supportEmail": "utkarshrana40@gmail.com"
+      }
+    }
+  }
+}

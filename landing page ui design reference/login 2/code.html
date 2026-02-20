@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Login - HealthGuard AI</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,typography,container-queries"></script>
+<script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        primary: "#149184",
+                        secondary: "#0d6e64",
+                        "background-light": "#f8fafc",
+                        "background-dark": "#0f172a",
+                    },
+                    fontFamily: {
+                        display: ["Plus Jakarta Sans", "sans-serif"],
+                    },
+                    borderRadius: {
+                        DEFAULT: "0.75rem",
+                    },
+                },
+            },
+        };
+    </script>
+<style type="text/tailwindcss">
+        :root {
+            --primary-color: #149184;
+            --secondary-color: #0d6e64;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .bg-teal-gradient {
+            background: linear-gradient(135deg, #149184 0%, #0d6e64 100%);
+        }
+    </style>
+</head>
+<body class="font-display bg-white dark:bg-background-dark text-slate-900 dark:text-slate-100 min-h-screen flex items-stretch">
+<div class="hidden lg:flex w-1/2 bg-teal-gradient relative overflow-hidden flex-col justify-between p-12 text-white">
+<div class="absolute top-0 right-0 -mr-20 -mt-20 w-80 h-80 bg-white/10 rounded-full blur-3xl"></div>
+<div class="absolute bottom-0 left-0 -ml-20 -mb-20 w-80 h-80 bg-teal-400/20 rounded-full blur-3xl"></div>
+<div class="relative z-10">
+<div class="flex items-center gap-2 mb-12">
+<div class="w-10 h-10 bg-white/20 backdrop-blur-md rounded-xl flex items-center justify-center">
+<span class="material-symbols-outlined text-white">health_and_safety</span>
+</div>
+<span class="text-2xl font-extrabold tracking-tight">HealthGuard <span class="text-teal-200 italic">AI</span></span>
+</div>
+<div class="max-w-md">
+<h1 class="text-5xl font-extrabold leading-tight mb-6">Your Personal <br/>AI Health Coach.</h1>
+<p class="text-teal-50 text-lg opacity-90 leading-relaxed mb-8">
+                    Join thousands of Indians who are managing their health with the perfect blend of modern AI and ancient Ayurvedic wisdom.
+                </p>
+<div class="space-y-6">
+<div class="flex items-center gap-4 bg-white/10 backdrop-blur-md p-4 rounded-2xl border border-white/10">
+<div class="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center text-teal-200">
+<span class="material-symbols-outlined">trending_up</span>
+</div>
+<div>
+<div class="text-2xl font-bold">15,000+</div>
+<div class="text-xs uppercase tracking-wider font-semibold opacity-70">Active Users in India</div>
+</div>
+</div>
+<div class="flex items-center gap-4 bg-white/10 backdrop-blur-md p-4 rounded-2xl border border-white/10">
+<div class="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center text-teal-200">
+<span class="material-symbols-outlined">verified</span>
+</div>
+<div>
+<div class="text-2xl font-bold">98.5%</div>
+<div class="text-xs uppercase tracking-wider font-semibold opacity-70">Accuracy Rate</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="relative z-10 text-sm opacity-60">
+            © 2024 HealthGuard AI. Trusted by health professionals across Bharat.
+        </div>
+</div>
+<div class="flex-1 flex flex-col justify-center px-6 py-12 lg:px-24 bg-white dark:bg-slate-900">
+<div class="max-w-md w-full mx-auto">
+<div class="mb-10 text-center lg:text-left">
+<div class="lg:hidden flex justify-center items-center gap-2 mb-8">
+<div class="w-10 h-10 bg-primary rounded-xl flex items-center justify-center text-white">
+<span class="material-symbols-outlined">health_and_safety</span>
+</div>
+<span class="text-2xl font-extrabold tracking-tight">HealthGuard <span class="text-primary italic">AI</span></span>
+</div>
+<h2 class="text-3xl font-extrabold text-slate-900 dark:text-white mb-2">Welcome Back</h2>
+<p class="text-slate-500 dark:text-slate-400">Please enter your details to sign in</p>
+</div>
+<div class="flex border-b border-slate-200 dark:border-slate-800 mb-8">
+<a class="flex-1 text-center pb-4 text-sm font-semibold border-b-2 border-primary text-primary transition-all" href="#">
+                    Login
+                </a>
+<a class="flex-1 text-center pb-4 text-sm font-semibold border-b-2 border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-all" href="#">
+                    Sign Up
+                </a>
+</div>
+<form action="#" class="space-y-5">
+<div>
+<label class="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2" for="email">Email Address</label>
+<div class="relative">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">mail</span>
+<input class="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent transition-all outline-none text-slate-900 dark:text-white" id="email" name="email" placeholder="name@company.com" type="email"/>
+</div>
+</div>
+<div>
+<label class="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2" for="password">Password</label>
+<div class="relative">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">lock</span>
+<input class="w-full pl-10 pr-10 py-3 bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent transition-all outline-none text-slate-900 dark:text-white" id="password" name="password" placeholder="••••••••" type="password"/>
+<button class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors" type="button">
+<span class="material-symbols-outlined text-lg">visibility</span>
+</button>
+</div>
+</div>
+<div class="flex items-center justify-between py-1">
+<div class="flex items-center">
+<input class="w-4 h-4 rounded border-slate-300 dark:border-slate-700 text-primary focus:ring-primary bg-white dark:bg-slate-800" id="remember" type="checkbox"/>
+<label class="ml-2 text-sm text-slate-600 dark:text-slate-400 cursor-pointer" for="remember">Remember me</label>
+</div>
+<a class="text-sm font-semibold text-primary hover:text-teal-700 transition-colors" href="#">Forgot Password?</a>
+</div>
+<button class="w-full bg-primary hover:bg-secondary text-white font-bold py-3.5 px-4 rounded-xl shadow-lg shadow-teal-500/20 transition-all flex items-center justify-center gap-2 group" type="submit">
+                    Log In
+                    <span class="material-symbols-outlined text-lg group-hover:translate-x-1 transition-transform">login</span>
+</button>
+</form>
+<div class="relative my-8">
+<div class="absolute inset-0 flex items-center">
+<div class="w-full border-t border-slate-200 dark:border-slate-800"></div>
+</div>
+<div class="relative flex justify-center text-sm">
+<span class="px-4 bg-white dark:bg-slate-900 text-slate-500 font-medium">Or continue with</span>
+</div>
+</div>
+<div class="grid grid-cols-2 gap-4">
+<button class="flex items-center justify-center gap-2 px-4 py-3 border border-slate-200 dark:border-slate-800 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-all">
+<img alt="Google" class="w-5 h-5" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC05m7cSgFwLlxDJPoMiJEmB0SYayA6Kp6yugjuxun8kqYmTEgDcEoibS5-p1mkfT5ryfI5i9r8UeyHvWwDHwZozfL_DFuz6a-VLeQSMPo5_S63PYwG-VtIA_0Zx7WPrhnEir5sfttvK9Mxbxqph-bMSxmEBs-EwnW5SeGMdiyKJSWffP7EgcKkgIvo1s_c4jE0VINdvxtSh5KZBJ6nBv5IdS1rEgs4EqfZipSiLXeej6Sq2JgKXfU3kGbPpSsOsCH5v5PJb3gi2tbV"/>
+<span class="text-sm font-semibold text-slate-700 dark:text-slate-300">Google</span>
+</button>
+<button class="flex items-center justify-center gap-2 px-4 py-3 border border-slate-200 dark:border-slate-800 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-all">
+<img alt="Apple" class="w-5 h-5 dark:invert" src="https://lh3.googleusercontent.com/aida-public/AB6AXuACPxBkQ6I3l-m49gvwpFL8pXuUlFBdU4XM34aQcBUN2MjtcB8LPxTE8UjLU9Exvctcb1RxeLDoWxNnCIOCwAwawQKxt3S-E8jPiIR9pDzUseNpp0rD4OYsumrAl3ign6tLEWPdO9JjjMTVWpwACrMn2alQGYHzEd3FFzwNpYOPI1hrtPhRfNgs7Jkt-tQqKk1q8lgP3K-cWye9q216VNil8eVjmG8SwzdR7WFeJtFupF_i_lRZ4_R-5sw25YCZFjh0bK2j4BfmiEsi"/>
+<span class="text-sm font-semibold text-slate-700 dark:text-slate-300">Apple</span>
+</button>
+</div>
+<div class="mt-10 lg:hidden text-center">
+<p class="text-sm text-slate-500">© 2024 HealthGuard AI</p>
+</div>
+</div>
+</div>
+
+</body></html>

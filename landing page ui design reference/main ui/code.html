@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>HealthGuard AI - Expert Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,typography"></script>
+<script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        primary: "#0D9488",
+                        secondary: "#6366F1",
+                        "background-light": "#F8FAFC",
+                        "background-dark": "#0F172A",
+                        "card-light": "rgba(255, 255, 255, 0.8)",
+                        "card-dark": "rgba(30, 41, 59, 0.7)",
+                    },
+                    fontFamily: {
+                        display: ["Inter", "sans-serif"],
+                    },
+                    borderRadius: {
+                        DEFAULT: "12px",
+                    },
+                },
+            },
+        };
+    </script>
+<style>
+        .glass {
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+        }
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 10px;
+        }
+        .dark ::webkit-scrollbar-thumb {
+            background: #475569;
+        }
+    </style>
+</head>
+<body class="font-display bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 min-h-screen transition-colors duration-300">
+<div class="flex h-screen overflow-hidden">
+<aside class="w-72 flex-shrink-0 flex flex-col border-r border-slate-200 dark:border-slate-800 glass bg-card-light dark:bg-card-dark z-20">
+<div class="p-6 flex items-center justify-between">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 bg-primary flex items-center justify-center rounded-xl text-white shadow-lg shadow-teal-500/20">
+<span class="material-icons-round">health_and_safety</span>
+</div>
+<div>
+<h1 class="font-bold text-lg leading-tight">HealthGuard</h1>
+<span class="text-[10px] font-bold tracking-wider uppercase text-primary bg-primary/10 px-1.5 py-0.5 rounded">Pro AI</span>
+</div>
+</div>
+</div>
+<div class="px-4 mb-6">
+<button class="w-full flex items-center justify-center gap-2 bg-primary hover:bg-teal-700 text-white py-3.5 rounded-2xl font-semibold transition-all shadow-lg shadow-teal-500/25 active:scale-[0.98]">
+<span class="material-icons-round text-lg">add_circle</span>
+                    New Consultation
+                </button>
+</div>
+<div class="px-4 mb-4">
+<div class="relative group">
+<span class="material-icons-round absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-primary transition-colors">search</span>
+<input class="w-full pl-10 pr-4 py-2.5 bg-slate-100 dark:bg-slate-800/50 border-none rounded-xl focus:ring-2 focus:ring-primary/20 text-sm placeholder:text-slate-400 dark:placeholder:text-slate-500" placeholder="Search chats..." type="text"/>
+</div>
+</div>
+<div class="flex-1 overflow-y-auto px-2 space-y-6">
+<div>
+<h3 class="px-4 text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3">Yesterday</h3>
+<div class="space-y-1">
+<button class="w-full flex items-start gap-3 p-3 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-left group">
+<span class="material-icons-round text-slate-400 mt-0.5 group-hover:text-primary">chat_bubble_outline</span>
+<div class="overflow-hidden">
+<p class="text-sm font-medium truncate">Fever symptoms relief</p>
+<p class="text-xs text-slate-400 mt-0.5">16h ago</p>
+</div>
+</button>
+<button class="w-full flex items-start gap-3 p-3 rounded-xl bg-primary/5 border border-primary/10 text-left">
+<span class="material-icons-round text-primary mt-0.5">chat_bubble</span>
+<div class="overflow-hidden">
+<p class="text-sm font-semibold text-primary truncate">Home remedies for flu</p>
+<p class="text-xs text-primary/60 mt-0.5">18h ago</p>
+</div>
+</button>
+</div>
+</div>
+<div>
+<h3 class="px-4 text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3">This Week</h3>
+<div class="space-y-1">
+<button class="w-full flex items-start gap-3 p-3 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-left group">
+<span class="material-icons-round text-slate-400 mt-0.5 group-hover:text-primary">medication</span>
+<div class="overflow-hidden">
+<p class="text-sm font-medium truncate">Order paracetamol</p>
+<p class="text-xs text-slate-400 mt-0.5">2d ago</p>
+</div>
+</button>
+<button class="w-full flex items-start gap-3 p-3 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-left group">
+<span class="material-icons-round text-slate-400 mt-0.5 group-hover:text-primary">description</span>
+<div class="overflow-hidden">
+<p class="text-sm font-medium truncate">Diet chart evaluation</p>
+<p class="text-xs text-slate-400 mt-0.5">3d ago</p>
+</div>
+</button>
+</div>
+</div>
+</div>
+<div class="p-4 border-t border-slate-200 dark:border-slate-800 mt-auto">
+<div class="flex items-center gap-3 p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer">
+<div class="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-500 font-bold overflow-hidden">
+<img alt="User Avatar" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDMRaE8epUMUt0OKB3YuA-TIPSthrL0n1cctnjJcjyA_-Tbxtm5r7bBsWDzXuR1SE5BOAKtLc-gJwZWoxoRt9nWAXZC9yTrmBlPKzqaNTFO2_0YUDRIVYuMSeHmn4jdfW3cCm3Lv5fHz-aA851qwQG6gtm6OZFrOYCx15w-_px9yjNjf7RNx6vPwih6PVMNMEoXgEpwL_qBdSalQlexKrchqcIfFLJakJgD5edCe2SnIim9EetOnAvZcXO2RuPEnXQDQSJWDY9FLsjc"/>
+</div>
+<div class="flex-1 min-w-0">
+<p class="text-sm font-semibold truncate">Generic User</p>
+<p class="text-[10px] font-bold text-primary uppercase">Pro Plan</p>
+</div>
+<span class="material-icons-round text-slate-400">logout</span>
+</div>
+</div>
+</aside>
+<main class="flex-1 flex flex-col bg-white dark:bg-slate-900 overflow-hidden relative">
+<header class="h-16 flex items-center justify-center border-b border-slate-100 dark:border-slate-800 px-6 glass absolute top-0 left-0 right-0 z-10">
+<div class="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-2xl border border-slate-200 dark:border-slate-700">
+<button class="flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-xs font-medium text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors">
+<span class="material-icons-round text-sm">bolt</span> Fast
+                    </button>
+<button class="flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-xs font-semibold bg-white dark:bg-slate-700 shadow-sm text-primary transition-all">
+<span class="material-icons-round text-sm">auto_awesome</span> Standard
+                    </button>
+<button class="flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-xs font-medium text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors">
+<span class="material-icons-round text-sm">psychology</span> Deep Think
+                    </button>
+<button class="flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-xs font-medium text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors">
+<span class="material-icons-round text-sm">visibility</span> Vision
+                    </button>
+</div>
+</header>
+<div class="flex-1 overflow-y-auto pt-24 pb-32 px-6 flex flex-col items-center">
+<div class="max-w-2xl w-full space-y-8">
+<div class="flex flex-col items-center text-center space-y-4">
+<div class="w-16 h-16 bg-primary/10 rounded-3xl flex items-center justify-center text-primary mb-2">
+<span class="material-icons-round text-3xl">waving_hand</span>
+</div>
+<div class="bg-slate-50 dark:bg-slate-800/50 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800">
+<p class="text-slate-700 dark:text-slate-300 leading-relaxed">
+                                Namaste! I'm <span class="font-bold text-slate-900 dark:text-white">HealthGuard Pro</span>. I can suggest 
+                                <span class="text-primary font-semibold underline decoration-primary/30 decoration-2 underline-offset-4 cursor-pointer">Indian home remedies</span>, 
+                                <span class="text-primary font-semibold underline decoration-primary/30 decoration-2 underline-offset-4 cursor-pointer">healthy diet plans</span>, 
+                                or order medicines for you. How are you feeling today?
+                            </p>
+</div>
+</div>
+<div class="flex justify-end">
+<div class="bg-primary text-white p-4 rounded-2xl rounded-tr-none shadow-lg max-w-[80%]">
+<p class="text-sm">I've been feeling a bit sluggish and have a slight headache. Any recommendations?</p>
+</div>
+</div>
+<div class="flex justify-start">
+<div class="bg-slate-100 dark:bg-slate-800 p-4 rounded-2xl rounded-tl-none border border-slate-200 dark:border-slate-700 max-w-[80%]">
+<p class="text-sm">I'm sorry to hear that. For a mild headache and fatigue, staying hydrated is crucial. You might try a glass of lukewarm water with a squeeze of lemon and a pinch of rock salt (Saindhava Lavana). It helps balance electrolytes.</p>
+<div class="mt-3 flex gap-2">
+<button class="text-[10px] uppercase font-bold text-primary px-2 py-1 bg-primary/10 rounded-lg">Diet Tip</button>
+<button class="text-[10px] uppercase font-bold text-primary px-2 py-1 bg-primary/10 rounded-lg">Home Remedy</button>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="absolute bottom-0 left-0 right-0 p-6 glass border-t border-slate-100 dark:border-slate-800">
+<div class="max-w-3xl mx-auto">
+<div class="relative flex items-center bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-4 py-2 shadow-xl shadow-slate-200/50 dark:shadow-none focus-within:ring-2 focus-within:ring-primary/20 transition-all">
+<button class="p-2 text-slate-400 hover:text-primary transition-colors">
+<span class="material-icons-round">attach_file</span>
+</button>
+<textarea class="flex-1 border-none focus:ring-0 bg-transparent py-2 resize-none text-sm dark:placeholder:text-slate-500" placeholder="Ask about remedies, diet, or medicines..." rows="1"></textarea>
+<button class="ml-2 w-10 h-10 bg-primary hover:bg-teal-700 text-white rounded-xl flex items-center justify-center transition-all shadow-lg shadow-teal-500/30 active:scale-95">
+<span class="material-icons-round">send</span>
+</button>
+</div>
+<div class="mt-3 flex items-center justify-center gap-1.5 text-slate-400">
+<span class="material-icons-round text-sm text-primary">location_on</span>
+<span class="text-[10px] font-medium tracking-tight">Location active for accurate medical assistance</span>
+</div>
+</div>
+</div>
+</main>
+<aside class="w-80 flex-shrink-0 flex flex-col border-l border-slate-200 dark:border-slate-800 glass bg-card-light dark:bg-card-dark overflow-y-auto">
+<div class="p-6">
+<div class="flex items-center justify-between mb-8">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 bg-secondary/10 rounded-xl flex items-center justify-center text-secondary">
+<span class="material-icons-round">fitness_center</span>
+</div>
+<div>
+<h2 class="font-bold text-sm leading-tight">Fitness Hub</h2>
+<p class="text-[10px] text-slate-400">Powered by ExerciseDB</p>
+</div>
+</div>
+<button class="px-3 py-1.5 bg-secondary/10 hover:bg-secondary/20 text-secondary text-[10px] font-bold rounded-lg transition-colors flex items-center gap-1">
+                        ASK AI <span class="material-icons-round text-xs">auto_awesome</span>
+</button>
+</div>
+<div class="grid grid-cols-2 gap-3 mb-8">
+<div class="bg-orange-50 dark:bg-orange-500/10 p-4 rounded-2xl border border-orange-100 dark:border-orange-500/20 text-center relative overflow-hidden group">
+<span class="material-icons-round absolute -right-2 -bottom-2 text-orange-200 dark:text-orange-500/10 text-5xl group-hover:scale-110 transition-transform">local_fire_department</span>
+<p class="text-[10px] font-bold text-orange-600 dark:text-orange-400 uppercase tracking-widest mb-1">Kcal</p>
+<p class="text-2xl font-black text-slate-900 dark:text-white">850</p>
+</div>
+<div class="bg-blue-50 dark:bg-blue-500/10 p-4 rounded-2xl border border-blue-100 dark:border-blue-500/20 text-center relative overflow-hidden group">
+<span class="material-icons-round absolute -right-2 -bottom-2 text-blue-200 dark:text-blue-500/10 text-5xl group-hover:scale-110 transition-transform">favorite</span>
+<p class="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-widest mb-1">BPM</p>
+<p class="text-2xl font-black text-slate-900 dark:text-white">72</p>
+</div>
+<div class="col-span-2 bg-emerald-50 dark:bg-emerald-500/10 p-4 rounded-2xl border border-emerald-100 dark:border-emerald-500/20 text-center relative overflow-hidden group">
+<span class="material-icons-round absolute -right-4 -bottom-4 text-emerald-200 dark:text-emerald-500/10 text-7xl group-hover:scale-110 transition-transform">directions_run</span>
+<p class="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-widest mb-1">Daily Exercises</p>
+<p class="text-2xl font-black text-slate-900 dark:text-white">1.3k+</p>
+</div>
+</div>
+<div>
+<div class="flex items-center gap-2 mb-4">
+<span class="material-icons-round text-slate-400 text-lg">track_changes</span>
+<h3 class="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Target Muscles</h3>
+</div>
+<div class="flex flex-wrap gap-2">
+<div class="flex items-center gap-1.5 px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full text-[11px] font-semibold hover:border-primary transition-colors cursor-pointer group shadow-sm">
+<span class="material-icons-round text-xs text-slate-400 group-hover:text-primary">accessibility</span>
+                            Abdominals
+                        </div>
+<div class="flex items-center gap-1.5 px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full text-[11px] font-semibold hover:border-primary transition-colors cursor-pointer group shadow-sm">
+<span class="material-icons-round text-xs text-slate-400 group-hover:text-primary">linear_scale</span>
+                            Abductors
+                        </div>
+<div class="flex items-center gap-1.5 px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full text-[11px] font-semibold hover:border-primary transition-colors cursor-pointer group shadow-sm text-primary border-primary bg-primary/5">
+<span class="material-icons-round text-xs text-primary">fitness_center</span>
+                            Biceps
+                        </div>
+<div class="flex items-center gap-1.5 px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full text-[11px] font-semibold hover:border-primary transition-colors cursor-pointer group shadow-sm">
+<span class="material-icons-round text-xs text-slate-400 group-hover:text-primary">straighten</span>
+                            Calves
+                        </div>
+<div class="flex items-center gap-1.5 px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full text-[11px] font-semibold hover:border-primary transition-colors cursor-pointer group shadow-sm">
+<span class="material-icons-round text-xs text-slate-400 group-hover:text-primary">shield</span>
+                            Chest
+                        </div>
+<div class="flex items-center gap-1.5 px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full text-[11px] font-semibold hover:border-primary transition-colors cursor-pointer group shadow-sm">
+<span class="material-icons-round text-xs text-slate-400 group-hover:text-primary">bolt</span>
+                            Hamstrings
+                        </div>
+<div class="flex items-center gap-1.5 px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full text-[11px] font-semibold hover:border-primary transition-colors cursor-pointer group shadow-sm">
+<span class="material-icons-round text-xs text-slate-400 group-hover:text-primary">reorder</span>
+                            Lats
+                        </div>
+<div class="flex items-center gap-1.5 px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full text-[11px] font-semibold hover:border-primary transition-colors cursor-pointer group shadow-sm">
+<span class="material-icons-round text-xs text-slate-400 group-hover:text-primary">vertical_align_bottom</span>
+                            Lower Back
+                        </div>
+</div>
+</div>
+<div class="mt-12 p-5 bg-gradient-to-br from-secondary/10 to-primary/10 rounded-3xl border border-secondary/20 relative overflow-hidden">
+<div class="relative z-10">
+<h4 class="font-bold text-sm mb-1">Your AI Fitness Coach</h4>
+<p class="text-[11px] text-slate-500 dark:text-slate-400 mb-4 leading-relaxed">Let me create a custom workout plan using our premium exercise library.</p>
+<button class="w-full bg-secondary text-white py-2.5 rounded-xl text-xs font-bold shadow-lg shadow-secondary/25 hover:brightness-110 active:scale-95 transition-all">
+                            GENERATE MY PLAN
+                        </button>
+</div>
+<span class="material-icons-round absolute -right-4 -bottom-4 text-secondary/10 text-8xl">smart_toy</span>
+</div>
+</div>
+</aside>
+</div>
+
+</body></html>

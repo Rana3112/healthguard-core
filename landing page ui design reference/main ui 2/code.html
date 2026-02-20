@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>HealthGuard AI - Personal Fitness Coach</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,typography"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet"/>
+<script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        primary: "#14b8a6", // Teal
+                        secondary: "#a855f7", // Light Purple
+                        "background-light": "#f8fafc",
+                        "background-dark": "#0f172a",
+                    },
+                    fontFamily: {
+                        display: ["Inter", "sans-serif"],
+                    },
+                    borderRadius: {
+                        DEFAULT: "0.75rem",
+                    },
+                },
+            },
+        };
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+        .dark::-webkit-scrollbar-thumb { background: #334155; }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 h-screen flex overflow-hidden">
+<aside class="w-72 border-r border-slate-200 dark:border-slate-800 flex flex-col bg-white dark:bg-slate-900 shrink-0">
+<div class="p-6 flex items-center gap-3">
+<div class="w-10 h-10 bg-primary rounded-xl flex items-center justify-center text-white font-bold text-xl">H</div>
+<div>
+<h1 class="font-bold text-lg leading-none">HealthGuard</h1>
+<span class="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-semibold uppercase tracking-wider">Pro AI</span>
+</div>
+</div>
+<div class="px-4 mb-4">
+<button class="w-full bg-primary hover:bg-teal-600 text-white font-medium py-3 rounded-xl flex items-center justify-center gap-2 transition-all shadow-sm">
+<span class="material-icons-outlined text-xl">add_comment</span>
+                New Consultation
+            </button>
+</div>
+<div class="px-4 mb-6">
+<div class="relative">
+<span class="material-icons-outlined absolute left-3 top-2.5 text-slate-400 text-lg">search</span>
+<input class="w-full bg-slate-100 dark:bg-slate-800 border-none rounded-xl pl-10 text-sm focus:ring-2 focus:ring-primary/20" placeholder="Search chats..." type="text"/>
+</div>
+</div>
+<div class="flex-1 overflow-y-auto px-4 space-y-6">
+<div>
+<h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3 px-2">Yesterday</h3>
+<div class="space-y-1">
+<div class="p-3 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer flex items-start gap-3 group">
+<span class="material-icons-outlined text-slate-400 mt-0.5">chat_bubble_outline</span>
+<div class="flex-1 overflow-hidden">
+<p class="text-sm font-medium truncate">Persistent seasonal fever</p>
+<p class="text-[11px] text-slate-400">16h ago</p>
+</div>
+</div>
+<div class="p-3 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-start gap-3">
+<span class="material-icons-outlined text-primary mt-0.5">chat_bubble</span>
+<div class="flex-1 overflow-hidden">
+<p class="text-sm font-medium truncate">Ayurvedic diet for Pitta</p>
+<p class="text-[11px] text-slate-400">18h ago</p>
+</div>
+</div>
+</div>
+</div>
+<div>
+<h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3 px-2">This Week</h3>
+<div class="space-y-1 text-slate-500">
+<div class="p-3 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer flex items-start gap-3">
+<span class="material-icons-outlined text-slate-400 mt-0.5">history</span>
+<div class="flex-1 overflow-hidden">
+<p class="text-sm truncate">Medicine order tracker</p>
+<p class="text-[11px]">2d ago</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="p-4 border-t border-slate-200 dark:border-slate-800">
+<div class="flex items-center gap-3 p-2 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl cursor-pointer">
+<div class="w-10 h-10 bg-slate-200 dark:bg-slate-700 rounded-full flex items-center justify-center font-bold text-slate-500">U</div>
+<div class="flex-1">
+<p class="text-sm font-semibold">Generic User</p>
+<p class="text-[11px] text-primary font-medium">Pro Plan Member</p>
+</div>
+<span class="material-icons-outlined text-slate-400">logout</span>
+</div>
+</div>
+</aside>
+<main class="flex-1 flex flex-col relative bg-white dark:bg-slate-900">
+<header class="h-16 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-6">
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 bg-green-500 rounded-full"></span>
+<span class="text-sm font-medium">HealthGuard Assistant</span>
+</div>
+<div class="flex items-center gap-4">
+<button class="text-slate-500 hover:text-primary transition-colors"><span class="material-icons-outlined">notifications</span></button>
+<button class="text-slate-500 hover:text-primary transition-colors"><span class="material-icons-outlined">settings</span></button>
+</div>
+</header>
+<div class="flex-1 overflow-y-auto p-8 space-y-8 max-w-4xl mx-auto w-full">
+<div class="flex gap-4">
+<div class="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+<span class="material-icons-outlined text-primary text-sm">smart_toy</span>
+</div>
+<div class="bg-slate-50 dark:bg-slate-800 p-6 rounded-2xl rounded-tl-none border border-slate-100 dark:border-slate-700/50 shadow-sm">
+<p class="leading-relaxed text-slate-700 dark:text-slate-300">
+                        Namaste! I'm HealthGuard Pro. I can suggest <span class="text-primary font-semibold">Indian home remedies</span>, <span class="text-primary font-semibold">healthy diet plans</span>, or order medicines for you. How are you feeling today?
+                    </p>
+</div>
+</div>
+<div class="flex gap-4 flex-row-reverse">
+<div class="w-8 h-8 rounded-lg bg-slate-200 dark:bg-slate-700 flex items-center justify-center shrink-0">
+<span class="material-icons-outlined text-slate-500 text-sm">person</span>
+</div>
+<div class="bg-primary text-white p-4 rounded-2xl rounded-tr-none shadow-md">
+<p>I've been feeling a bit sluggish lately. I want to start working out again but don't know where to begin.</p>
+</div>
+</div>
+<div class="flex gap-4">
+<div class="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+<span class="material-icons-outlined text-primary text-sm">smart_toy</span>
+</div>
+<div class="bg-slate-50 dark:bg-slate-800 p-6 rounded-2xl rounded-tl-none border border-slate-100 dark:border-slate-700/50 shadow-sm">
+<p class="leading-relaxed text-slate-700 dark:text-slate-300">
+                        I can certainly help you with a fitness plan! Check out the <span class="text-secondary font-semibold">AI Coach</span> panel on the right to personalize your workout strategy. I've enabled the fitness modules for you.
+                    </p>
+</div>
+</div>
+</div>
+<div class="p-6 border-t border-slate-200 dark:border-slate-800">
+<div class="max-w-4xl mx-auto">
+<div class="flex justify-center gap-2 mb-4">
+<button class="px-4 py-1.5 rounded-full text-[12px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 flex items-center gap-1">
+<span class="material-icons-outlined text-sm">bolt</span> Fast
+                    </button>
+<button class="px-4 py-1.5 rounded-full text-[12px] font-medium bg-primary/10 text-primary border border-primary/20 flex items-center gap-1">
+<span class="material-icons-outlined text-sm">auto_awesome</span> Standard
+                    </button>
+<button class="px-4 py-1.5 rounded-full text-[12px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 flex items-center gap-1">
+<span class="material-icons-outlined text-sm">psychology</span> Deep Think
+                    </button>
+<button class="px-4 py-1.5 rounded-full text-[12px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 flex items-center gap-1">
+<span class="material-icons-outlined text-sm">visibility</span> Vision
+                    </button>
+</div>
+<div class="flex items-center gap-3 relative">
+<button class="p-3 text-slate-400 hover:text-primary transition-colors">
+<span class="material-icons-outlined">attach_file</span>
+</button>
+<div class="flex-1 relative">
+<input class="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 py-4 px-6 rounded-2xl focus:ring-4 focus:ring-primary/10 focus:border-primary transition-all text-sm shadow-sm" placeholder="Ask about remedies, diet, or medicines..." type="text"/>
+<button class="absolute right-3 top-2 p-2 bg-primary text-white rounded-xl shadow-lg shadow-primary/20 hover:scale-105 transition-transform">
+<span class="material-icons-outlined">send</span>
+</button>
+</div>
+</div>
+<p class="text-center text-[10px] text-slate-400 mt-3 flex items-center justify-center gap-1">
+<span class="material-icons-outlined text-[12px]">location_on</span> Location active for accurate medical assistance
+                </p>
+</div>
+</div>
+</main>
+<aside class="w-[420px] border-l border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col shrink-0">
+<div class="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 bg-secondary/10 text-secondary rounded-2xl flex items-center justify-center">
+<span class="material-icons-outlined text-2xl">fitness_center</span>
+</div>
+<div>
+<h2 class="font-bold text-slate-900 dark:text-slate-100">AI Coach</h2>
+<p class="text-xs text-slate-400">Powered by ExerciseDB</p>
+</div>
+</div>
+<button class="text-xs font-semibold px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors flex items-center gap-1">
+<span class="material-icons-outlined text-sm">explore</span> Browse
+            </button>
+</div>
+<div class="flex-1 overflow-y-auto px-6 py-6 space-y-8">
+<section class="space-y-6">
+<div class="text-center">
+<div class="inline-flex items-center justify-center w-14 h-14 bg-secondary/5 rounded-full mb-4">
+<span class="material-icons-outlined text-secondary text-3xl">smart_toy</span>
+</div>
+<h3 class="font-bold text-lg mb-1">Your AI Fitness Coach</h3>
+<p class="text-sm text-slate-500 max-w-[280px] mx-auto leading-relaxed">Tell me about yourself and I'll create a custom workout plan using our pro exercise library.</p>
+</div>
+<div class="bg-slate-50 dark:bg-slate-800/50 p-6 rounded-3xl border border-slate-100 dark:border-slate-800">
+<div class="space-y-4">
+<div class="space-y-1.5">
+<label class="text-[11px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+<span class="material-icons-outlined text-[14px]">monitor_weight</span> Body Weight (kg)
+                            </label>
+<input class="w-full bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-sm focus:ring-secondary/20 focus:border-secondary" placeholder="e.g. 70" type="number"/>
+</div>
+<div class="space-y-1.5">
+<label class="text-[11px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+<span class="material-icons-outlined text-[14px]">straighten</span> Height (cm)
+                            </label>
+<input class="w-full bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-sm focus:ring-secondary/20 focus:border-secondary" placeholder="e.g. 175" type="number"/>
+</div>
+<div class="space-y-4 pt-2">
+<div class="flex justify-between items-center">
+<label class="text-[11px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+<span class="material-icons-outlined text-[14px]">apple</span> Diet Health Score
+                                </label>
+<span class="text-xs font-bold text-secondary">5/10</span>
+</div>
+<input class="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-secondary" type="range"/>
+<div class="flex justify-between text-[10px] text-slate-400 font-bold uppercase tracking-tighter">
+<span>Unhealthy</span>
+<span>Balanced</span>
+<span>Clean</span>
+</div>
+</div>
+</div>
+</div>
+<button class="w-full bg-secondary hover:bg-purple-600 text-white font-bold py-4 rounded-2xl shadow-lg shadow-secondary/20 transition-all flex items-center justify-center gap-2 active:scale-[0.98]">
+<span class="material-icons-outlined">auto_awesome</span>
+                    Generate My Plan
+                </button>
+</section>
+<hr class="border-slate-100 dark:border-slate-800"/>
+<section class="space-y-6">
+<div class="flex items-center justify-between">
+<div>
+<h3 class="font-bold text-lg text-secondary">Your Personalized Plan</h3>
+<p class="text-xs text-slate-400">Based on your stats</p>
+</div>
+<button class="flex items-center gap-1.5 text-[11px] font-bold text-secondary bg-secondary/10 px-3 py-1.5 rounded-lg hover:bg-secondary/20 transition-colors">
+<span class="material-icons-outlined text-[14px]">picture_as_pdf</span> PDF
+                    </button>
+</div>
+<div class="p-4 bg-purple-50/50 dark:bg-purple-900/10 border border-secondary/20 rounded-2xl italic text-xs leading-relaxed text-slate-600 dark:text-slate-400">
+                    "Based on your profile, you have a relatively high weight and a less-than-ideal diet quality. This suggests that you may be carrying excess body fat... A well-structured workout plan will help you achieve your goals."
+                </div>
+<div class="space-y-6">
+<div>
+<h4 class="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+<span class="w-1.5 h-1.5 bg-secondary rounded-full"></span> Day 1: Upper Body
+                        </h4>
+<div class="space-y-3">
+<div class="group flex items-center gap-4 p-3 bg-white dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700/50 rounded-2xl hover:border-secondary/30 transition-all cursor-pointer">
+<div class="w-16 h-16 rounded-xl overflow-hidden shrink-0 border border-slate-100 dark:border-slate-700">
+<img alt="Bench Press" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBlq3sG0PN07rNEjTQPU5d8OxPYPE1FGLNfad-ZUf7gZLm-fY0o67_stlDNXypdweasqzBckeOa2ECIP4bfzUQDpqS8SZPb8gaXMpvsOKTd631EWF-Pu4mIKvNIz9qFuppMXPEh7BKdXhpO57MiV40eWCh5byE4zcPo3nZ5d1UeeObuniqK66VZJ09ITtG6cqMEgQcE4IbR3uWnY7u7rRwtWwwDEbm9rki11BpNGsbEoeOHdzTvCa_LXTnYeDCQg6ELrga_DPl0pjv6"/>
+</div>
+<div class="flex-1 overflow-hidden">
+<p class="text-sm font-bold truncate">Barbell Bench Press</p>
+<p class="text-[10px] text-slate-400 font-medium uppercase">Chest • 3 Sets x 12 Reps</p>
+</div>
+<span class="material-icons-outlined text-slate-300 group-hover:text-secondary transition-colors">play_circle</span>
+</div>
+<div class="group flex items-center gap-4 p-3 bg-white dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700/50 rounded-2xl hover:border-secondary/30 transition-all cursor-pointer">
+<div class="w-16 h-16 rounded-xl overflow-hidden shrink-0 border border-slate-100 dark:border-slate-700">
+<img alt="Lat Pulldown" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDtwpQbvAmScWQo1S4g81mk657uO4TiDWfCOpZVMOtc2KhZryWRlA4b7FQxeLkuONkbzlm-cXUGESmgV-7lwLAWJ-ufQGb8yQByBw7kojGoKWIEJFMFQxEa-ae2OAP09wvUcowP4SpmOtcKWaY4SEoD918taxD9fSo_K3LKWtpYkkZWaOzr6q6_WB8x3ov1ts3dP9cUW4Zbsmt3eJM1ROkNQgQPlO8VCRVg_pygIPQn4Ue-dyCf30CTp1DPR7LvrmHS2aV9mDKB04bQ"/>
+</div>
+<div class="flex-1 overflow-hidden">
+<p class="text-sm font-bold truncate">Seated Cable Rows</p>
+<p class="text-[10px] text-slate-400 font-medium uppercase">Back • 4 Sets x 10 Reps</p>
+</div>
+<span class="material-icons-outlined text-slate-300 group-hover:text-secondary transition-colors">play_circle</span>
+</div>
+<div class="group flex items-center gap-4 p-3 bg-white dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700/50 rounded-2xl hover:border-secondary/30 transition-all cursor-pointer">
+<div class="w-16 h-16 rounded-xl overflow-hidden shrink-0 border border-slate-100 dark:border-slate-700">
+<img alt="Bicep Curl" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCtsa9Aj0bKGvDnDrJV_bkHzrpxxURF22KzKC56kQivjAOdQILI78tgiWDwK5RGlIA2CXByJgBmXafsAp32-F4BHoeM3BOcmem_o1AN0t5vyrzPEflsV8GwIx1XX6yZElEldhSBxTDdRQBtJPMsf2PZBIaiK90w-5utks56WR-l_2ZiLlY2TOEMVAqWwsjRoeXev5OkTDsQzwSwa3Qx8uvNH-phMavkjL3yTQoQDkombGB_mLTmA_EwloveXQpO61uS9sQivqhXww59"/>
+</div>
+<div class="flex-1 overflow-hidden">
+<p class="text-sm font-bold truncate">Incline Dumbbell Curl</p>
+<p class="text-[10px] text-slate-400 font-medium uppercase">Arms • 3 Sets x 15 Reps</p>
+</div>
+<span class="material-icons-outlined text-slate-300 group-hover:text-secondary transition-colors">play_circle</span>
+</div>
+</div>
+</div>
+<div>
+<h4 class="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+<span class="w-1.5 h-1.5 bg-secondary rounded-full"></span> Day 2: Lower Body
+                        </h4>
+<div class="space-y-3">
+<div class="group flex items-center gap-4 p-3 bg-white dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700/50 rounded-2xl hover:border-secondary/30 transition-all cursor-pointer">
+<div class="w-16 h-16 rounded-xl overflow-hidden shrink-0 border border-slate-100 dark:border-slate-700">
+<img alt="Squats" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAUvWQOMAltfcf-6bV6BeDi7Zlicu_Yxw9_RysPLIAxxRWUeSuPeOnZKoQuqA-RPJ_fDkshfgChccRVp9rp7JFQSdrh_Ybsm-9rqbAdIJsda2OZuRYBSJCR3V9LEiW-vY21JqGJaYcCDB-_augl8nr7oFzSW-U3jPMPW_K6BI9JbvnDjkYPr_t4VmdBmj1kTxbtesv7ORi9moo27RfsdMbCAEw4n1PDHUpIDeW1VC3NNq7fGYUk0p3DYRZRSY6AryfPe82s3UnA4CAE"/>
+</div>
+<div class="flex-1 overflow-hidden">
+<p class="text-sm font-bold truncate">Barbell Squats</p>
+<p class="text-[10px] text-slate-400 font-medium uppercase">Legs • 4 Sets x 8 Reps</p>
+</div>
+<span class="material-icons-outlined text-slate-300 group-hover:text-secondary transition-colors">play_circle</span>
+</div>
+</div>
+</div>
+</div>
+</section>
+</div>
+<div class="p-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50">
+<div class="relative">
+<input class="w-full bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded-xl pl-4 pr-12 py-3 text-sm focus:ring-secondary/20 focus:border-secondary" placeholder="Ask Coach about your plan..." type="text"/>
+<button class="absolute right-2 top-2 p-1.5 bg-secondary text-white rounded-lg hover:bg-purple-600 transition-colors">
+<span class="material-icons-outlined text-sm">send</span>
+</button>
+</div>
+</div>
+</aside>
+
+</body></html>

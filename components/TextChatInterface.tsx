@@ -1,0 +1,389 @@
+import React, { useState, useRef, useEffect } from 'react';
+import { Send, Mic, Image, Loader2, Sparkles, Activity, Pill, MapPin, Volume2 } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import rehypeRaw from 'rehype-raw';
+import { sendMessageToAgent, ModelMode } from '../services/geminiService';
+import { AgentAction, ChatMessage, MessageRole } from '../types';
+import MedicinePriceCard from './MedicinePriceCard';
+
+interface TextChatInterfaceProps {
+  dispatch: React.Dispatch<AgentAction>;
+  messages: ChatMessage[];
+  setMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>;
+  onMessagesChange: (messages: ChatMessage[]) => void;
+  modelMode: ModelMode;
+  setModelMode: (mode: ModelMode) => void;
+}
+
+const TextChatInterface: React.FC<TextChatInterfaceProps> = ({ dispatch, messages, setMessages, onMessagesChange, modelMode, setModelMode }) => {
+  const [input, setInput] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<{ file: File, base64: string } | null>(null);
+  const [userLocation, setUserLocation] = useState<{ lat: number, lon: number } | null>(null);
+  const [playingMessageId, setPlayingMessageId] = useState<string | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Scroll to bottom
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+    onMessagesChange(messages);
+  }, [messages, onMessagesChange]);
+
+  // Get Location (Optional: for locating hospitals/pharmacies)
+  useEffect(() => {
+    if ("geolocation" in navigator) {
+      navigator.geolocation.getCurrentPosition((position) => {
+        setUserLocation({
+          lat: position.coords.latitude,
+          lon: position.coords.longitude
+        });
+      }, (error) => {
+        console.log("Location access denied or error:", error);
+      });
+    }
+  }, []);
+
+  const handleInitialSend = async () => {
+    if (!input.trim() && !selectedImage) return;
+
+    const userText = input;
+    setInput(''); // Clear input immediately
+
+    await handleSend(userText);
+  }
+
+  // Send Message Handler
+  const handleSend = async (text: string) => {
+    if (!text.trim() && !selectedImage) return;
+
+    const newMessage: ChatMessage = {
+      id: Date.now().toString(),
+      role: MessageRole.USER,
+      text: text,
+      image: selectedImage?.base64,
+      timestamp: Date.now()
+    };
+
+    const updatedMessages = [...messages, newMessage];
+    setMessages(updatedMessages);
+    setIsLoading(true);
+
+    // Reset inputs
+    const imageToSend = selectedImage; // Keep ref for API
+    setSelectedImage(null);
+
+    try {
+      // Prepare history for API
+      const history = updatedMessages.map(m => ({
+        id: m.id,
+        role: m.role === MessageRole.USER ? MessageRole.USER : MessageRole.MODEL,
+        text: m.text,
+        image: m.image
+      }));
+
+      // Call Gemini Service with Mode
+      const response = await sendMessageToAgent(
+        history,
+        text,
+        imageToSend ? imageToSend.base64.split(',')[1] : undefined,
+        false, // isEditRequest
+        userLocation ? { lat: userLocation.lat, lng: userLocation.lon } : null,
+        modelMode // PASS THE MODE
+      );
+
+      // Handle Agent Actions
+      if (response.text.includes("[AGENT_ORDER_START]")) {
+        dispatch({
+          type: 'START_AGENT_SESSION',
+          payload: { platform: 'Amazon', item: 'Medical Supplies', quantity: 1 }
+        });
+      }
+
+      const botMessage: ChatMessage = {
+        id: (Date.now() + 1).toString(),
+        role: MessageRole.MODEL,
+        text: response.text,
+        timestamp: Date.now(),
+        suggestedActions: response.suggestedActions,
+        priceComparison: response.priceComparison
+      };
+
+      setMessages(prev => [...prev, botMessage]);
+
+    } catch (error) {
+      console.error(error);
+      setMessages(prev => [...prev, {
+        id: Date.now().toString(),
+        role: MessageRole.MODEL,
+        text: "I'm sorry, I'm having trouble connecting right now. Please try again.",
+        timestamp: Date.now()
+      }]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setSelectedImage({
+          file,
+          base64: reader.result as string
+        });
+        // Auto-switch to Vision Mode
+        setModelMode('vision');
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handlePlayTTS = async (text: string, messageId: string) => {
+    if (playingMessageId === messageId) return; // Already playing this one (or basic debounce)
+
+    try {
+      setPlayingMessageId(messageId);
+      const response = await fetch('http://localhost:5001/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text })
+      });
+
+      if (!response.ok) throw new Error("TTS Failed");
+
+      const blob = await response.blob();
+      const audioUrl = URL.createObjectURL(blob);
+      const audio = new Audio(audioUrl);
+
+      audio.onended = () => setPlayingMessageId(null);
+      audio.onerror = () => setPlayingMessageId(null);
+
+      await audio.play();
+    } catch (error) {
+      console.error("TTS Error:", error);
+      setPlayingMessageId(null);
+    }
+  };
+
+  const runMedicalCheck = (type: string) => {
+    handleSend(`Check specifically for ${type} related issues based on my previous messages or image.`);
+  };
+
+  const getPlaceholder = () => {
+    switch (modelMode) {
+      case 'agent': return "Ask me to find medicines, compare prices, or set alerts...";
+      case 'vision': return "Upload an image of a medicine or report to analyze...";
+      case 'thinking': return "Ask a complex medical question for deep reasoning...";
+      case 'fast': return "Ask for quick home remedies or tips...";
+      default: return "Describe your symptoms or ask for health advice...";
+    }
+  };
+
+  return (
+    <div className="flex flex-col h-full bg-slate-50 relative">
+
+      {/* Messages Area */}
+      <div className="flex-1 overflow-y-auto px-4 py-6 space-y-6 scrollbar-thin scrollbar-thumb-slate-200">
+        {messages.length === 1 && messages[0].role === MessageRole.SYSTEM && ( // Assuming first message is welcome
+          <div className="flex flex-col items-center justify-center h-full text-center opacity-40 select-none">
+            <div className="w-20 h-20 bg-teal-100 rounded-3xl flex items-center justify-center mb-6">
+              <Sparkles className="w-10 h-10 text-teal-600" />
+            </div>
+            <h2 className="text-2xl font-bold text-slate-800 mb-2">How can I help today?</h2>
+            <p className="text-slate-500 max-w-sm">
+              {modelMode === 'agent' ? "I'm in Agent Mode. I can find medicines and prices for you." : "Ask about symptoms, analyze medical reports, or get fitness advice."}
+            </p>
+          </div>
+        )}
+
+        {messages.filter(m => m.role !== MessageRole.SYSTEM).map((msg) => (
+          <div
+            key={msg.id}
+            className={`flex ${msg.role === MessageRole.USER ? 'justify-end' : 'justify-start'}`}
+          >
+            <div className={`
+                            max-w-[85%] lg:max-w-[75%] rounded-2xl p-4 shadow-sm relative group
+                            ${msg.role === MessageRole.USER
+                ? 'bg-teal-600 text-white rounded-tr-none'
+                : 'bg-white text-slate-700 border border-slate-100 rounded-tl-none pb-9'
+              }
+                        `}>
+              {msg.image && (
+                <img src={msg.image} alt="Uploaded" className="max-w-xs rounded-lg mb-3 border border-white/20" />
+              )}
+
+              <div className={`prose prose-sm max-w-none ${msg.role === MessageRole.USER ? 'prose-invert text-white' : 'text-slate-700'}`}>
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  rehypePlugins={[rehypeRaw]}
+                  components={{
+                    table: ({ node, ...props }) => (
+                      <div className="overflow-x-auto my-4 border border-slate-200 rounded-lg">
+                        <table className="w-full text-sm text-left" {...props} />
+                      </div>
+                    ),
+                    thead: ({ node, ...props }) => <thead className="bg-slate-50 text-slate-700 uppercase text-xs" {...props} />,
+                    th: ({ node, ...props }) => <th className="px-4 py-3 font-bold border-b border-slate-200" {...props} />,
+                    td: ({ node, ...props }) => <td className="px-4 py-2 border-b border-slate-100 last:border-0" {...props} />,
+                    strong: ({ node, ...props }) => <strong className="font-bold text-teal-700 bg-teal-50 px-1 rounded" {...props} />,
+                    ul: ({ node, ...props }) => <ul className="list-disc list-outside ml-4 space-y-1 my-2" {...props} />,
+                    ol: ({ node, ...props }) => <ol className="list-decimal list-outside ml-4 space-y-1 my-2" {...props} />,
+                    li: ({ node, ...props }) => <li className="pl-1" {...props} />,
+                  }}
+                >
+                  {msg.text}
+                </ReactMarkdown>
+              </div>
+
+              {/* SERP Price Card (Model Only) */}
+              {msg.priceComparison && (
+                <MedicinePriceCard
+                  query={msg.priceComparison.query}
+                  results={msg.priceComparison.results}
+                  cheapest={msg.priceComparison.cheapest}
+                />
+              )}
+
+              {/* TTS Button (Model Only) */}
+              {msg.role === MessageRole.MODEL && (
+                <button
+                  onClick={() => handlePlayTTS(msg.text, msg.id)}
+                  disabled={playingMessageId === msg.id}
+                  className="absolute bottom-2 left-2 p-1.5 text-slate-400 hover:text-teal-600 hover:bg-slate-50 rounded-full transition-colors"
+                  title="Read Aloud"
+                >
+                  {playingMessageId === msg.id ? (
+                    <Loader2 className="w-4 h-4 animate-spin text-teal-600" />
+                  ) : (
+                    <Volume2 className="w-4 h-4" />
+                  )}
+                </button>
+              )}
+
+              {/* Suggested Actions (Only for last model message) */}
+              {msg.role === MessageRole.MODEL && msg.suggestedActions && msg === messages[messages.length - 1] && (
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {msg.suggestedActions.map(reply => (
+                    <button
+                      key={reply}
+                      onClick={() => handleSend(reply)}
+                      className="text-xs bg-slate-50 hover:bg-slate-100 text-teal-600 px-3 py-1.5 rounded-full border border-teal-100 transition-colors"
+                    >
+                      {reply}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {msg.timestamp && (
+                <span className={`text-[10px] absolute bottom-1 ${msg.role === MessageRole.USER ? 'left-2 text-teal-200' : 'right-2 text-slate-300'} opacity-0 group-hover:opacity-100 transition-opacity`}>
+                  {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </span>
+              )}
+            </div>
+          </div>
+        ))}
+
+        {isLoading && (
+          <div className="flex justify-start">
+            <div className="bg-white px-4 py-3 rounded-2xl rounded-tl-none border border-slate-100 shadow-sm flex items-center gap-2">
+              <Loader2 className="w-4 h-4 text-teal-500 animate-spin" />
+              <span className="text-xs text-slate-500 font-medium">
+                {modelMode === 'thinking' ? "Thinking deeply..." : modelMode === 'agent' ? "Searching platforms..." : "Analyzing..."}
+              </span>
+            </div>
+          </div>
+        )}
+
+        <div ref={messagesEndRef} />
+      </div>
+
+      {/* Sticky Input Area */}
+      <div className={`p-4 backdrop-blur-md border-t border-slate-100 transition-colors ${modelMode === 'agent' ? 'bg-purple-50/80' : 'bg-white/80'}`}>
+        <div className="max-w-4xl mx-auto">
+          {/* Quick Tools */}
+          {messages.length <= 1 && (
+            <div className="flex gap-2 mb-4 overflow-x-auto pb-2 scrollbar-hide">
+              <button onClick={() => runMedicalCheck('Symptoms')} className="flex items-center gap-2 px-4 py-2 bg-red-50 text-red-600 rounded-xl text-xs font-bold border border-red-100 hover:bg-red-100 transition-colors whitespace-nowrap">
+                <Activity className="w-4 h-4" /> Check Symptoms
+              </button>
+              <button onClick={() => runMedicalCheck('Medicines')} className="flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-600 rounded-xl text-xs font-bold border border-blue-100 hover:bg-blue-100 transition-colors whitespace-nowrap">
+                <Pill className="w-4 h-4" /> Analyze Medicine
+              </button>
+              <button onClick={() => handleSend("Find nearby pharmacies")} className="flex items-center gap-2 px-4 py-2 bg-orange-50 text-orange-600 rounded-xl text-xs font-bold border border-orange-100 hover:bg-orange-100 transition-colors whitespace-nowrap">
+                <MapPin className="w-4 h-4" /> Nearby Pharmacy
+              </button>
+            </div>
+          )}
+
+          {/* Image Preview */}
+          {selectedImage && (
+            <div className="mb-3 flex items-center gap-3 bg-slate-50 p-2 rounded-xl border border-slate-200 inline-flex">
+              <img src={selectedImage.base64} className="w-10 h-10 object-cover rounded-lg" />
+              <div className="text-xs">
+                <p className="font-semibold text-slate-700 truncate max-w-[120px]">{selectedImage.file.name}</p>
+                <button onClick={() => setSelectedImage(null)} className="text-red-500 hover:underline">Remove</button>
+              </div>
+            </div>
+          )}
+
+          {/* Input Bar */}
+          <div className="relative flex items-center gap-2">
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="p-3 text-slate-400 hover:text-teal-600 hover:bg-teal-50 rounded-xl transition-all"
+              title="Upload Image"
+            >
+              <Image className="w-5 h-5" />
+            </button>
+            <input
+              type="file"
+              ref={fileInputRef}
+              className="hidden"
+              accept="image/*"
+              onChange={handleImageSelect}
+            />
+
+            <div className="flex-1 relative">
+              <input
+                type="text"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleInitialSend()}
+                placeholder={getPlaceholder()}
+                className={`w-full border-none rounded-2xl pl-4 pr-12 py-3.5 focus:ring-2 text-slate-700 placeholder:text-slate-400 font-medium transition-all ${modelMode === 'agent'
+                  ? 'bg-white focus:ring-purple-500/20'
+                  : 'bg-slate-100 focus:ring-teal-500/20'
+                  }`}
+              />
+              {/* Send Button inside Input */}
+              <button
+                onClick={handleInitialSend}
+                disabled={!input.trim() && !selectedImage}
+                className={`absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-xl transition-all ${input.trim() || selectedImage
+                  ? (modelMode === 'agent' ? 'bg-purple-600 hover:bg-purple-700 text-white shadow-md' : 'bg-teal-600 hover:bg-teal-700 text-white shadow-md')
+                  : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                  }`}
+              >
+                <Send className="w-4 h-4" />
+              </button>
+            </div>
+
+            <button className="p-3 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all">
+              <Mic className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      </div>
+    </div >
+  );
+};
+
+export default TextChatInterface;

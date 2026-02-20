@@ -1,0 +1,12 @@
+﻿components/TextChatInterface.tsx(96,49): error TS2345: Argument of type '{ id: string; role: "user" | "model"; text: string; image: string; }[]' is not assignable to parameter of type 'ChatMessage[]'.
+  Type '{ id: string; role: "user" | "model"; text: string; image: string; }' is not assignable to type 'ChatMessage'.
+    Types of property 'role' are incompatible.
+      Type '"user" | "model"' is not assignable to type 'MessageRole'.
+        Type '"user"' is not assignable to type 'MessageRole'.
+src/pages/Dashboard.tsx(156,29): error TS2322: Type 'ChatMessage[]' is not assignable to type 'Message[]'.
+  Property 'timestamp' is missing in type 'ChatMessage' but required in type 'Message'.
+src/pages/Dashboard.tsx(157,29): error TS2322: Type 'Dispatch<SetStateAction<ChatMessage[]>>' is not assignable to type 'Dispatch<SetStateAction<Message[]>>'.
+  Type 'SetStateAction<ChatMessage[]>' is not assignable to type 'SetStateAction<Message[]>'.
+    Type 'ChatMessage[]' is not assignable to type 'SetStateAction<Message[]>'.
+      Type 'ChatMessage[]' is not assignable to type 'Message[]'.
+        Property 'timestamp' is missing in type 'ChatMessage' but required in type 'Message'.

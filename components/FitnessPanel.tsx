@@ -60,6 +60,10 @@ interface Exercise {
     gifUrl: string;
     secondaryMuscles: string[];
     instructions: string[];
+    sets?: number;
+    reps?: string;
+    rest_seconds?: number;
+    tips?: string;
 }
 
 const FALLBACK_EXERCISES: Record<string, Exercise[]> = {
@@ -107,6 +111,16 @@ const muscleEmoji: Record<string, string> = {
     'abductors': '↔️', 'adductors': '🤸',
 };
 
+// --- Nutrition Types ---
+interface Nutrition {
+    daily_calories?: number;
+    protein_grams?: number;
+    pre_workout_shake?: string;
+    post_workout_shake?: string;
+    homemade_protein_shake?: string;
+    diet_tips?: string[];
+}
+
 // --- Types for AI Coach ---
 interface WorkoutDay {
     day_name: string;
@@ -117,6 +131,7 @@ interface WorkoutPlan {
     analysis: string;
     goal: string;
     days: WorkoutDay[];
+    nutrition?: Nutrition;
 }
 
 interface ChatMessage {
@@ -483,13 +498,6 @@ const FitnessPanel: React.FC = () => {
                                             : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-orange-300 hover:text-orange-500 hover:shadow-md hover:-translate-y-0.5'
                                             }`}
                                     >
-                                        <span className={selectedTarget === t ? 'opacity-100' : 'opacity-80'}>
-                                            {['pectorals', 'chest'].includes(t) && '💪'}
-                                            {['abs'].includes(t) && '🍫'}
-                                            {['lats', 'back'].includes(t) && '🔙'}
-                                            {['legs', 'quads', 'hamstrings'].includes(t) && '🦵'}
-                                            {!['pectorals', 'chest', 'abs', 'lats', 'back', 'legs', 'quads', 'hamstrings'].includes(t) && '🎯'}
-                                        </span>
                                         {t.replace(/_/g, ' ')}
                                     </button>
                                 ))}
@@ -629,18 +637,18 @@ const FitnessPanel: React.FC = () => {
                 {view === 'coach' && (
                     <div className="flex-1 flex flex-col h-full">
                         {coachStep === 'form' ? (
-                            <div className="space-y-6">
-                                <div className="text-center pt-4">
-                                    <div className="inline-flex items-center justify-center w-14 h-14 bg-teal-50 dark:bg-teal-900/30 rounded-full mb-4">
-                                        <Bot className="w-8 h-8 text-teal-600" />
+                            <div className="space-y-3">
+                                <div className="text-center pt-1">
+                                    <div className="inline-flex items-center justify-center w-10 h-10 bg-teal-50 dark:bg-teal-900/30 rounded-full mb-2">
+                                        <Bot className="w-5 h-5 text-teal-600" />
                                     </div>
-                                    <h3 className="font-bold text-lg mb-1 text-slate-800 dark:text-slate-100">Your AI Fitness Coach</h3>
-                                    <p className="text-sm text-slate-500 dark:text-slate-400 max-w-[280px] mx-auto leading-relaxed">
+                                    <h3 className="font-bold text-base mb-0.5 text-slate-800 dark:text-slate-100">Your AI Fitness Coach</h3>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400 max-w-[280px] mx-auto leading-relaxed">
                                         Tell me about yourself and I'll create a custom workout plan.
                                     </p>
                                 </div>
 
-                                <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 space-y-4 shadow-sm">
+                                <div className="bg-white dark:bg-slate-800 p-4 rounded-3xl border border-slate-100 dark:border-slate-700 space-y-3 shadow-sm">
                                     <div className="space-y-1.5">
                                         <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
                                             <Bot className="w-3 h-3" /> Age (years)
@@ -649,7 +657,7 @@ const FitnessPanel: React.FC = () => {
                                             type="number"
                                             value={userStats.age}
                                             onChange={e => setUserStats({ ...userStats, age: e.target.value })}
-                                            className="w-full bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-sm focus:ring-teal-200 focus:border-teal-400 outline-none transition-all dark:text-white"
+                                            className="w-full bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-sm focus:ring-teal-200 focus:border-teal-400 outline-none transition-all dark:text-white"
                                             placeholder="e.g. 25"
                                         />
                                     </div>
@@ -661,7 +669,7 @@ const FitnessPanel: React.FC = () => {
                                             type="number"
                                             value={userStats.weight}
                                             onChange={e => setUserStats({ ...userStats, weight: e.target.value })}
-                                            className="w-full bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-sm focus:ring-teal-200 focus:border-teal-400 outline-none transition-all dark:text-white"
+                                            className="w-full bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-sm focus:ring-teal-200 focus:border-teal-400 outline-none transition-all dark:text-white"
                                             placeholder="e.g. 70"
                                         />
                                     </div>
@@ -673,7 +681,7 @@ const FitnessPanel: React.FC = () => {
                                             type="number"
                                             value={userStats.height}
                                             onChange={e => setUserStats({ ...userStats, height: e.target.value })}
-                                            className="w-full bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-sm focus:ring-teal-200 focus:border-teal-400 outline-none transition-all dark:text-white"
+                                            className="w-full bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-sm focus:ring-teal-200 focus:border-teal-400 outline-none transition-all dark:text-white"
                                             placeholder="e.g. 175"
                                         />
                                     </div>
@@ -769,13 +777,23 @@ const FitnessPanel: React.FC = () => {
                                                                         </div>
                                                                         <div className="flex-1 min-w-0 flex flex-col justify-center min-h-[4rem]">
                                                                             <p className="text-[15px] font-bold text-slate-800 dark:text-slate-100 truncate group-hover:text-teal-600 dark:group-hover:text-teal-400 transition-colors">{ex.name}</p>
-                                                                            <div className="flex items-center gap-2 mt-1">
+                                                                            <div className="flex items-center gap-2 mt-1 flex-wrap">
                                                                                 <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400">
                                                                                     {ex.equipment || 'Bodyweight'}
                                                                                 </span>
                                                                                 <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
                                                                                     {ex.target}
                                                                                 </span>
+                                                                                {ex.sets && ex.reps && (
+                                                                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-teal-50 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400">
+                                                                                        {ex.sets} × {ex.reps}
+                                                                                    </span>
+                                                                                )}
+                                                                                {ex.rest_seconds && (
+                                                                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-orange-50 dark:bg-orange-900/20 text-orange-500 dark:text-orange-400">
+                                                                                        ⏱ {ex.rest_seconds}s rest
+                                                                                    </span>
+                                                                                )}
                                                                             </div>
                                                                         </div>
                                                                         <div className="self-center pr-2">
@@ -800,6 +818,13 @@ const FitnessPanel: React.FC = () => {
                                                                                         loading="lazy"
                                                                                         alt={ex.name}
                                                                                     />
+                                                                                </div>
+                                                                            )}
+
+                                                                            {/* Pro Tip */}
+                                                                            {ex.tips && (
+                                                                                <div className="mb-3 p-3 bg-amber-50 dark:bg-amber-900/10 rounded-xl border border-amber-200 dark:border-amber-800/30">
+                                                                                    <p className="text-[11px] text-amber-700 dark:text-amber-400 font-medium">💡 <strong>Pro Tip:</strong> {ex.tips}</p>
                                                                                 </div>
                                                                             )}
 
@@ -829,6 +854,56 @@ const FitnessPanel: React.FC = () => {
                                                 </div>
                                             ))}
                                         </div>
+
+                                        {/* Nutrition Section */}
+                                        {workoutPlan?.nutrition && (
+                                            <div className="p-5 border-t border-slate-100 dark:border-slate-700">
+                                                <h4 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                                                    <span className="w-2 h-2 bg-gradient-to-tr from-green-400 to-green-600 rounded-full shadow-sm shadow-green-500/50"></span>
+                                                    🥤 Nutrition & Shakes
+                                                </h4>
+                                                <div className="space-y-3">
+                                                    {workoutPlan.nutrition.daily_calories && (
+                                                        <div className="flex items-center gap-3 p-3 bg-teal-50 dark:bg-teal-900/10 rounded-xl">
+                                                            <span className="text-2xl">🔥</span>
+                                                            <div>
+                                                                <p className="text-xs font-bold text-teal-700 dark:text-teal-400">Daily Target: {workoutPlan.nutrition.daily_calories} kcal | {workoutPlan.nutrition.protein_grams}g protein</p>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                    {workoutPlan.nutrition.pre_workout_shake && (
+                                                        <div className="p-3 bg-blue-50 dark:bg-blue-900/10 rounded-xl border border-blue-100 dark:border-blue-800/30">
+                                                            <p className="text-[11px] font-bold text-blue-600 dark:text-blue-400 mb-1">⚡ Pre-Workout Shake</p>
+                                                            <p className="text-xs text-blue-700 dark:text-blue-300 leading-relaxed">{workoutPlan.nutrition.pre_workout_shake}</p>
+                                                        </div>
+                                                    )}
+                                                    {workoutPlan.nutrition.post_workout_shake && (
+                                                        <div className="p-3 bg-green-50 dark:bg-green-900/10 rounded-xl border border-green-100 dark:border-green-800/30">
+                                                            <p className="text-[11px] font-bold text-green-600 dark:text-green-400 mb-1">💪 Post-Workout Shake</p>
+                                                            <p className="text-xs text-green-700 dark:text-green-300 leading-relaxed">{workoutPlan.nutrition.post_workout_shake}</p>
+                                                        </div>
+                                                    )}
+                                                    {workoutPlan.nutrition.homemade_protein_shake && (
+                                                        <div className="p-3 bg-purple-50 dark:bg-purple-900/10 rounded-xl border border-purple-100 dark:border-purple-800/30">
+                                                            <p className="text-[11px] font-bold text-purple-600 dark:text-purple-400 mb-1">🏠 Homemade Protein Shake</p>
+                                                            <p className="text-xs text-purple-700 dark:text-purple-300 leading-relaxed">{workoutPlan.nutrition.homemade_protein_shake}</p>
+                                                        </div>
+                                                    )}
+                                                    {workoutPlan.nutrition.diet_tips && workoutPlan.nutrition.diet_tips.length > 0 && (
+                                                        <div className="p-3 bg-amber-50 dark:bg-amber-900/10 rounded-xl border border-amber-100 dark:border-amber-800/30">
+                                                            <p className="text-[11px] font-bold text-amber-600 dark:text-amber-400 mb-2">📝 Diet Tips</p>
+                                                            <ul className="space-y-1">
+                                                                {workoutPlan.nutrition.diet_tips.map((tip, i) => (
+                                                                    <li key={i} className="text-xs text-amber-700 dark:text-amber-300 flex gap-2">
+                                                                        <span className="text-amber-500">•</span> {tip}
+                                                                    </li>
+                                                                ))}
+                                                            </ul>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
 
                                     {/* Follow-up Chat History */}

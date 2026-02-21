@@ -432,9 +432,17 @@ def generate_workout():
         }
         intensity_label = intensity_map.get(str(workout_intensity).lower(), "Intermediate")
         
+        # Intensity-based exercise scaling
+        intensity_rules = {
+            "naive": "3-4 exercises per day, 2-3 sets each, 60-90 seconds rest between sets. Keep it simple and safe.",
+            "intermediate": "5-6 exercises per day, 3-4 sets each, 45-60 seconds rest between sets. Moderate challenge.",
+            "aggressive": "7-8 exercises per day, 4-5 sets each, 30-45 seconds rest between sets. Push to the limit with supersets and dropsets."
+        }
+        intensity_rule = intensity_rules.get(str(workout_intensity).lower(), intensity_rules["intermediate"])
+
         # 1. Prompt the LLM
         prompt = f"""
-        Act as an expert fitness coach.
+        Act as an expert fitness coach and sports nutritionist.
         User Profile:
         - Age: {age} years
         - Weight: {weight}kg
@@ -442,28 +450,46 @@ def generate_workout():
         - Diet Quality: {diet_score}/10
         - Desired Workout Intensity: {intensity_label}
         
-        Create a personalized workout plan.
+        INTENSITY RULE: {intensity_rule}
+        
+        Create a personalized workout plan WITH detailed exercise info AND nutrition advice.
         OUTPUT RULES:
         1. Return ONLY valid JSON. No markdown formatting.
         2. JSON Structure:
         {{
-            "analysis": "Brief analysis of physique and diet...",
-            "goal": "Recommended Goal (e.g. Weight Loss, Muscle Gain)",
+            "analysis": "Brief analysis of physique, BMI, and diet quality...",
+            "goal": "Recommended Goal (e.g. Weight Loss, Muscle Gain, Lean Bulk)",
+            "nutrition": {{
+                "daily_calories": 2200,
+                "protein_grams": 120,
+                "pre_workout_shake": "1 banana + 1 scoop whey protein + 200ml milk + 1 tbsp peanut butter. Blend and drink 30 min before workout.",
+                "post_workout_shake": "1 scoop whey protein + 200ml water + 5g creatine + 1 tbsp honey. Drink within 30 min after workout.",
+                "homemade_protein_shake": "2 eggs + 1 banana + 200ml milk + 2 tbsp oats + 1 tbsp peanut butter + 1 tsp cocoa powder. Blend smooth.",
+                "diet_tips": ["Eat protein with every meal", "Stay hydrated — 3-4L water daily", "Avoid processed sugar"]
+            }},
             "days": [
                 {{
                     "day_name": "Day 1: Upper Body",
                     "exercises": [
-                        {{ "name": "Bench Press", "target": "pectorals", "equipment": "barbell" }},
-                        {{ "name": "Lat Pulldown", "target": "lats", "equipment": "cable" }}
+                        {{ 
+                            "name": "Bench Press", 
+                            "target": "pectorals", 
+                            "equipment": "barbell",
+                            "sets": 4,
+                            "reps": "8-10",
+                            "rest_seconds": 60,
+                            "tips": "Keep your shoulder blades pinched. Don't bounce the bar off your chest.",
+                            "instructions": ["Lie on a flat bench.", "Grip bar slightly wider than shoulders.", "Lower to chest.", "Press up explosively."]
+                        }}
                     ]
                 }}
             ]
         }}
-        3. Use ExerciseDB compatible targets: pectorals, back, legs, abs, arms, shoulders.
-        4. Use ExerciseDB compatible equipment: barbell, dumbbell, cable, body weight.
-        5. For EACH exercise, you MUST provide an "instructions" array containing 2-4 step-by-step strings on how to perform the movement. This is REQUIRED.
-        Example exercise object:
-        {{ "name": "Push Up", "target": "pectorals", "equipment": "body weight", "instructions": ["Get into a plank position.", "Lower your body until chest touches the floor.", "Push back up."] }}
+        3. Use ExerciseDB compatible targets: pectorals, back, legs, abs, arms, shoulders, lats, biceps, triceps, quads, hamstrings, glutes, calves, delts.
+        4. Use ExerciseDB compatible equipment: barbell, dumbbell, cable, body weight, machine, band.
+        5. For EACH exercise, you MUST provide: sets (number), reps (string like "8-10" or "12"), rest_seconds (number), tips (string with form advice), and instructions (array of 2-4 steps).
+        6. The "nutrition" object with shakes and tips is REQUIRED.
+        7. Follow the INTENSITY RULE strictly for exercise count and sets.
         """
         
         headers = {
@@ -718,6 +744,86 @@ def delete_user_chat(user_id, session_id):
         return jsonify({"success": True}), 200
     except Exception as e:
         print(f"Error deleting chat: {e}")
+        return jsonify({"error": str(e)}), 500
+
+# ============================================================
+# Drug Interaction Checker
+# ============================================================
+@app.route('/check-interactions', methods=['POST'])
+def check_interactions():
+    """Check drug interactions between multiple medicines using LLM."""
+    if not OPENROUTER_API_KEY:
+        return jsonify({"error": "OPENROUTER_API_KEY not configured"}), 500
+    
+    data = request.json
+    medicines = data.get('medicines', [])
+    
+    if len(medicines) < 2:
+        return jsonify({"error": "At least 2 medicines required"}), 400
+    
+    api_key_clean = OPENROUTER_API_KEY.strip()
+    med_list = ', '.join(medicines)
+    
+    try:
+        import requests as req
+        prompt = f"""
+        You are a Clinical Pharmacist AI. Analyze drug interactions between these medicines: {med_list}
+        
+        For EACH pair of medicines, check for interactions.
+        
+        Return ONLY valid JSON with this structure:
+        {{
+            "summary": "Brief overall safety assessment",
+            "interactions": [
+                {{
+                    "drug_a": "Medicine name 1",
+                    "drug_b": "Medicine name 2",
+                    "severity": "safe|caution|dangerous",
+                    "description": "What happens when these are taken together",
+                    "recommendation": "What the patient should do"
+                }}
+            ],
+            "general_advice": "Overall advice for taking these medicines together"
+        }}
+        
+        SEVERITY LEVELS:
+        - "safe": No known interactions, can be taken together
+        - "caution": Minor interaction, monitor or adjust timing
+        - "dangerous": Serious interaction, avoid combination or consult doctor immediately
+        
+        Be thorough and clinically accurate. If no interaction exists, still include the pair with severity "safe".
+        """
+        
+        headers = {
+            "Authorization": f"Bearer {api_key_clean}",
+            "Content-Type": "application/json",
+            "HTTP-Referer": "http://localhost:5001",
+        }
+        
+        payload = {
+            "model": "meta-llama/llama-3.1-70b-instruct",
+            "messages": [
+                {"role": "system", "content": "You are a JSON-only clinical pharmacist API."},
+                {"role": "user", "content": prompt}
+            ],
+            "temperature": 0.3,
+            "response_format": {"type": "json_object"}
+        }
+        
+        resp = req.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload, timeout=30)
+        
+        if resp.status_code != 200:
+            return jsonify({"error": f"LLM Error: {resp.text}"}), 500
+        
+        llm_data = resp.json()
+        content = llm_data['choices'][0]['message']['content']
+        
+        import json
+        result = json.loads(content)
+        return jsonify(result)
+        
+    except Exception as e:
+        print(f"[Drug Interaction] Error: {e}")
         return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':

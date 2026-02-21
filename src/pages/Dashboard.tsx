@@ -1,12 +1,17 @@
-import React, { useReducer, useState, useCallback } from 'react';
+import React, { useReducer, useState, useCallback, useEffect } from 'react';
 import { AgentState, AgentAction } from '../../types';
 import LiveVoiceInterface from '../../components/LiveVoiceInterface';
 import TextChatInterface from '../../components/TextChatInterface';
 import FitnessPanel from '../../components/FitnessPanel';
+import HealthDashboard from '../../components/HealthDashboard';
+import DrugInteractionChecker from '../../components/DrugInteractionChecker';
 import AgentActivityMonitor from '../../components/AgentActivityMonitor';
 import Sidebar from '../../components/Sidebar';
+import SettingsPanel from '../../components/SettingsPanel';
+import NotificationPanel from '../../components/NotificationPanel';
+import { applyTheme, getStoredTheme } from '../../components/SettingsPanel';
 import { useChatHistory } from '../../hooks/useChatHistory';
-import { Menu, Zap, Sparkles, BrainCircuit, Eye, Settings, Bell, Bot, LogOut } from 'lucide-react';
+import { Menu, Zap, Sparkles, BrainCircuit, Eye, Settings, Bell, Bot, LogOut, Dumbbell, Heart, Pill } from 'lucide-react';
 import { ModelMode } from '../../services/geminiService';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -75,9 +80,14 @@ const Dashboard: React.FC = () => {
     const [activeTab, setActiveTab] = useState<'chat' | 'live'>('chat');
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [activeRightSidebar, setActiveRightSidebar] = useState(false);
+    const [rightPanel, setRightPanel] = useState<'fitness' | 'health' | 'drugs'>('fitness');
     const [modelMode, setModelMode] = useState<ModelMode>('standard');
+    const [showSettings, setShowSettings] = useState(false);
+    const [showNotifications, setShowNotifications] = useState(false);
     const { user } = useAuth();
     const navigate = useNavigate();
+
+    useEffect(() => { applyTheme(getStoredTheme()); }, []);
 
     const {
         sessions,
@@ -158,14 +168,26 @@ const Dashboard: React.FC = () => {
                     </div>
 
                     {/* Right Actions */}
-                    <div className="flex items-center gap-4">
-                        <button className="text-slate-400 hover:text-teal-600 dark:text-slate-500 dark:hover:text-teal-400 transition-colors"><Bell className="w-5 h-5" /></button>
+                    <div className="flex items-center gap-3 relative">
                         <button
-                            onClick={() => setActiveRightSidebar(!activeRightSidebar)}
-                            className="text-slate-400 hover:text-teal-600 dark:text-slate-500 dark:hover:text-teal-400 transition-colors"
+                            onClick={(e) => { e.stopPropagation(); setShowNotifications(!showNotifications); }}
+                            className="relative text-slate-400 hover:text-teal-600 dark:text-slate-500 dark:hover:text-teal-400 transition-colors p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800"
+                        >
+                            <Bell className="w-5 h-5" />
+                        </button>
+                        <button
+                            onClick={() => setShowSettings(true)}
+                            className="text-slate-400 hover:text-teal-600 dark:text-slate-500 dark:hover:text-teal-400 transition-colors p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800"
                         >
                             <Settings className="w-5 h-5" />
                         </button>
+                        <button
+                            onClick={() => setActiveRightSidebar(!activeRightSidebar)}
+                            className="lg:hidden text-slate-400 hover:text-teal-600 dark:text-slate-500 dark:hover:text-teal-400 transition-colors p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800"
+                        >
+                            <Dumbbell className="w-5 h-5" />
+                        </button>
+                        <NotificationPanel isOpen={showNotifications} onClose={() => setShowNotifications(false)} />
                     </div>
                 </header>
 
@@ -186,13 +208,45 @@ const Dashboard: React.FC = () => {
                 </div>
             </div>
 
-            {/* Right Sidebar: Fitness Panel */}
+            {/* Right Sidebar: Fitness Panel / Health Dashboard */}
             <aside className={`
                 fixed inset-y-0 right-0 w-[420px] bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 z-30 transform transition-transform duration-300
                 lg:relative lg:transform-none lg:block
                 ${activeRightSidebar ? 'translate-x-0' : 'translate-x-full lg:translate-x-0'}
             `}>
-                <FitnessPanel />
+                {/* Panel Tabs */}
+                <div className="p-2.5 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 shrink-0">
+                    <div className="flex bg-slate-100 dark:bg-slate-800/60 rounded-full p-1">
+                        <button
+                            onClick={() => setRightPanel('fitness')}
+                            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-full text-xs font-bold transition-all duration-200 ${rightPanel === 'fitness'
+                                ? 'bg-gradient-to-r from-violet-500 to-purple-600 text-white shadow-md shadow-purple-500/20'
+                                : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'}`}
+                        >
+                            <Dumbbell className="w-3.5 h-3.5" /> Fitness
+                        </button>
+                        <button
+                            onClick={() => setRightPanel('health')}
+                            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-full text-xs font-bold transition-all duration-200 ${rightPanel === 'health'
+                                ? 'bg-gradient-to-r from-violet-500 to-purple-600 text-white shadow-md shadow-purple-500/20'
+                                : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'}`}
+                        >
+                            <Heart className="w-3.5 h-3.5" /> Health
+                        </button>
+                        <button
+                            onClick={() => setRightPanel('drugs')}
+                            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-full text-xs font-bold transition-all duration-200 ${rightPanel === 'drugs'
+                                ? 'bg-gradient-to-r from-violet-500 to-purple-600 text-white shadow-md shadow-purple-500/20'
+                                : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'}`}
+                        >
+                            <Pill className="w-3.5 h-3.5" /> Interactions
+                        </button>
+                    </div>
+                </div>
+                {/* Panel Content */}
+                <div className="flex-1 overflow-hidden" style={{ height: 'calc(100% - 52px)' }}>
+                    {rightPanel === 'fitness' ? <FitnessPanel /> : rightPanel === 'health' ? <HealthDashboard /> : <DrugInteractionChecker />}
+                </div>
             </aside>
 
             {/* Mobile Overlay for Right Sidebar */}
@@ -207,6 +261,9 @@ const Dashboard: React.FC = () => {
             {state.agentSession.isActive && (
                 <AgentActivityMonitor session={state.agentSession} orders={state.orders} dispatch={dispatch} />
             )}
+
+            {/* Settings Panel */}
+            <SettingsPanel isOpen={showSettings} onClose={() => setShowSettings(false)} />
 
         </div>
     );

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Mic, Image, Loader2, Sparkles, Activity, Pill, MapPin, Volume2, Square } from 'lucide-react';
+import { Send, Mic, Image, Loader2, Sparkles, Activity, Pill, MapPin, Volume2, Square, FileSearch, ShieldAlert } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
@@ -393,6 +393,12 @@ const TextChatInterface: React.FC<TextChatInterfaceProps> = ({ dispatch, message
               </button>
               <button onClick={() => handleSend("Find nearby pharmacies")} className="flex items-center gap-2 px-4 py-2 bg-orange-50 text-orange-600 rounded-xl text-xs font-bold border border-orange-100 hover:bg-orange-100 transition-colors whitespace-nowrap">
                 <MapPin className="w-4 h-4" /> Nearby Pharmacy
+              </button>
+              <button onClick={() => { setModelMode('vision'); handleSend("Analyze this medical report. Extract ALL lab values and test results. For each value: show the parameter name, measured value, normal range, and status (✅ Normal, ⬆️ High, ⬇️ Low). Flag any critical or abnormal values. Then provide a summary of overall health and actionable recommendations. Format results in a clear table."); }} className="flex items-center gap-2 px-4 py-2 bg-teal-50 text-teal-600 rounded-xl text-xs font-bold border border-teal-100 hover:bg-teal-100 transition-colors whitespace-nowrap">
+                <FileSearch className="w-4 h-4" /> Analyze Report
+              </button>
+              <button onClick={() => handleSend("I want to check drug interactions. Please ask me which medicines I'm taking so you can check for dangerous interactions between them.")} className="flex items-center gap-2 px-4 py-2 bg-purple-50 text-purple-600 rounded-xl text-xs font-bold border border-purple-100 hover:bg-purple-100 transition-colors whitespace-nowrap">
+                <ShieldAlert className="w-4 h-4" /> Drug Interactions
               </button>
             </div>
           )}

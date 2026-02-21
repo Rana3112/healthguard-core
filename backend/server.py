@@ -239,7 +239,7 @@ def auto_order_endpoint():
     result_holder = [None]
     
     def run_agent():
-        from browser_agent import start_order_sync
+        from playwright_order_agent import start_order_sync
         result = start_order_sync(url, product_title, platform, progress_list)
         result_holder[0] = result
     

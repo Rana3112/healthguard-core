@@ -107,7 +107,7 @@ const TextChatInterface: React.FC<TextChatInterfaceProps> = ({ dispatch, message
     formData.append('audio', audioBlob, 'recording.webm');
 
     try {
-      const BACKEND_URL = (import.meta as any).env?.VITE_BACKEND_URL || 'http://localhost:5001';
+      const BACKEND_URL = (import.meta as any).env?.VITE_BACKEND_URL || 'https://healthguard-backend-yo9a.onrender.com';
       const response = await fetch(`${BACKEND_URL}/api/transcribe`, {
         method: 'POST',
         body: formData,

@@ -4,7 +4,7 @@ import { useAuth } from '../src/context/AuthContext';
 
 const BASE_STORAGE_KEY = 'healthguard_chat_history';
 const MAX_SESSIONS = 50;
-const API_BASE = 'http://localhost:5001/api/chats';
+const API_BASE = (import.meta as any).env?.VITE_BACKEND_URL ? `${(import.meta as any).env.VITE_BACKEND_URL}/api/chats` : 'https://healthguard-backend-yo9a.onrender.com/api/chats';
 
 const WELCOME_MESSAGE: ChatMessage = {
     id: 'welcome',

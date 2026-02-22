@@ -7,7 +7,7 @@ import remarkGfm from 'remark-gfm';
 import { sendMessageToAgent } from '../services/geminiService';
 import Model from 'react-body-highlighter';
 
-const BACKEND_URL = 'http://localhost:5001';
+const BACKEND_URL = (import.meta as any).env?.VITE_BACKEND_URL || 'https://healthguard-backend-yo9a.onrender.com';
 
 const mapTargetToMuscle = (target: string): { muscles: string[], type: 'anterior' | 'posterior' } => {
     const t = target.toLowerCase();

@@ -43,7 +43,7 @@ const MedicinePriceCard: React.FC<MedicinePriceCardProps> = ({ query, results, c
         setOrderSteps([]);
         setOrderStatus('running');
 
-        const BACKEND_URL = 'http://localhost:5001';
+        const BACKEND_URL = (import.meta as any).env?.VITE_BACKEND_URL || 'https://healthguard-backend-yo9a.onrender.com';
         try {
             const response = await fetch(`${BACKEND_URL}/auto-order`, {
                 method: 'POST',

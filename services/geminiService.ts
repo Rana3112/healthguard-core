@@ -37,7 +37,7 @@ export const toolsDef: Tool[] = [
   { functionDeclarations: [searchMedicineTool, setHealthAlertTool] },
 ];
 
-const BACKEND_URL = 'http://127.0.0.1:5001';
+const BACKEND_URL = (import.meta as any).env?.VITE_BACKEND_URL || 'https://healthguard-backend-yo9a.onrender.com';
 
 // Helper to handle tool calls — now async for API calls
 export const handleToolCall = async (

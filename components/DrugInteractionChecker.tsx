@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ShieldCheck, Plus, X, Loader2, CheckCircle, AlertTriangle, XCircle, Lock, Search, Pill } from 'lucide-react';
 
-const BACKEND_URL = 'http://localhost:5001';
+const BACKEND_URL = (import.meta as any).env?.VITE_BACKEND_URL || 'https://healthguard-backend-yo9a.onrender.com';
 
 interface Interaction {
     drug_a: string;

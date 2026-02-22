@@ -2,7 +2,6 @@ flask
 flask-cors
 requests
 python-dotenv
-browser-use
 langchain-google-genai
 pymongo
 gunicorn

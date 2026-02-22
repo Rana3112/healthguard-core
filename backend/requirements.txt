@@ -13,3 +13,4 @@ python-dotenv
 browser-use
 langchain-google-genai
 pymongo
+gunicorn

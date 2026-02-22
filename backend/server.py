@@ -1,9 +1,6 @@
 import os
-import io
 import json
 import time
-import torch
-import soundfile as sf
 from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 from dotenv import load_dotenv
@@ -58,69 +55,13 @@ def load_local_exercises():
         print(f"[System] Failed to load local exercises: {e}")
         LOCAL_EXERCISES = []
 
-load_local_exercises()
-
-# --- TTS Setup (Optional/Graceful Fallback) ---
-tts = None
-default_state = None
-try:
-    print("Loading Pocket TTS model...")
-    from pocket_tts import TTSModel
-    tts = TTSModel.load_model()
-    print("Pocket TTS model loaded.")
-    print("Loading default voice state...")
-    default_state = tts.get_state_for_audio_prompt('cosette')
-    print("Default voice state loaded.")
-except Exception as e:
-    print(f"WARNING: Pocket TTS failed to load. Voice features will be disabled. Error: {e}")
-
-# --- Removed OCR Setup for Memory Optimization ---
+# --- Removed Local TTS and OCR Setup for Cloud Optimization ---
 
 
 
-@app.route('/tts', methods=['POST'])
-def generate_speech():
-    global tts, default_state
-    if not tts or not default_state:
-        return jsonify({"error": "TTS system is not active (failed to load)."}), 503
 
-    try:
-        data = request.json
-        text = data.get('text', '')
-        
-        if not text:
-            return jsonify({"error": "No text provided"}), 400
+# --- Removed /tts and /ocr Endpoints (Now using Gemini Cloud Voice) ---
 
-        print(f"Generating audio for: {text[:50]}...")
-        
-        # Generate audio using the model state
-        audio = tts.generate_audio(default_state, text)
-        
-        # If it's a tensor, convert to numpy
-        if hasattr(audio, 'cpu'):
-            audio = audio.cpu().numpy()
-            
-        # Ensure it's 1D or 2D for soundfile
-        if len(audio.shape) > 1 and audio.shape[0] == 1:
-            audio = audio.squeeze()
-            
-        # Convert to WAV in-memory
-        wav_buffer = io.BytesIO()
-        sf.write(wav_buffer, audio, 24000, format='WAV')
-        wav_buffer.seek(0)
-        
-        return send_file(
-            wav_buffer,
-            mimetype="audio/wav",
-            as_attachment=False,
-            download_name="output.wav"
-        )
-
-    except Exception as e:
-        print(f"Error generating speech: {e}")
-        return jsonify({"error": str(e)}), 500
-
-# --- Removed /ocr Endpoint ---
 
 
 
@@ -771,5 +712,4 @@ def check_interactions():
         return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
-    load_ocr_model()
     app.run(host='0.0.0.0', port=5001)

@@ -1,8 +1,5 @@
 flask
 flask-cors
-pocket-tts
-soundfile
-torch
 requests
 python-dotenv
 browser-use

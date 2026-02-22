@@ -3,7 +3,7 @@ import { Send, Mic, Image, Loader2, Sparkles, Activity, Pill, MapPin, Volume2, S
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
-import { sendMessageToAgent, ModelMode } from '../services/geminiService';
+import { sendMessageToAgent, ModelMode, generateSpeech } from '../services/geminiService';
 import { AgentAction, ChatMessage, MessageRole } from '../types';
 import MedicinePriceCard from './MedicinePriceCard';
 import NearbyPharmacyMap from './NearbyPharmacyMap';
@@ -234,20 +234,19 @@ const TextChatInterface: React.FC<TextChatInterfaceProps> = ({ dispatch, message
   };
 
   const handlePlayTTS = async (text: string, messageId: string) => {
-    if (playingMessageId === messageId) return; // Already playing this one (or basic debounce)
+    if (playingMessageId === messageId) return; // Already playing this one
 
     try {
       setPlayingMessageId(messageId);
-      const response = await fetch('http://localhost:5001/tts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text })
-      });
 
-      if (!response.ok) throw new Error("TTS Failed");
+      const audioBase64 = await generateSpeech(text);
 
-      const blob = await response.blob();
-      const audioUrl = URL.createObjectURL(blob);
+      if (!audioBase64) {
+        throw new Error("Cloud TTS Failed to generate audio");
+      }
+
+      // Play the base64 audio directly (Gemini 2.0 Flash usually returns audio/wav compatible base64)
+      const audioUrl = `data:audio/wav;base64,${audioBase64}`;
       const audio = new Audio(audioUrl);
 
       audio.onended = () => setPlayingMessageId(null);

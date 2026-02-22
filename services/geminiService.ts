@@ -97,7 +97,7 @@ export const handleToolCall = async (
 };
 
 // TTS Helper
-async function generateSpeech(text: string): Promise<string | null> {
+export async function generateSpeech(text: string): Promise<string | null> {
   if (!process.env.API_KEY) return null;
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 

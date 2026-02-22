@@ -1,9 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Mic, Image, Loader2, Sparkles, Activity, Pill, MapPin, Volume2, Square, FileSearch, ShieldAlert, Zap, BrainCircuit, Eye, Bot } from 'lucide-react';
+import { Send, Mic, Image, Loader2, Sparkles, Activity, Pill, MapPin, Square, FileSearch, ShieldAlert, Zap, BrainCircuit, Eye, Bot } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
-import { sendMessageToAgent, ModelMode, generateSpeech } from '../services/geminiService';
+import { sendMessageToAgent, ModelMode } from '../services/geminiService';
 import { AgentAction, ChatMessage, MessageRole } from '../types';
 import MedicinePriceCard from './MedicinePriceCard';
 import NearbyPharmacyMap from './NearbyPharmacyMap';
@@ -26,7 +26,6 @@ const TextChatInterface: React.FC<TextChatInterfaceProps> = ({ dispatch, message
   const [isLoading, setIsLoading] = useState(false);
   const [selectedImage, setSelectedImage] = useState<{ file: File, base64: string } | null>(null);
   const [userLocation, setUserLocation] = useState<{ lat: number, lon: number } | null>(null);
-  const [playingMessageId, setPlayingMessageId] = useState<string | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -233,31 +232,6 @@ const TextChatInterface: React.FC<TextChatInterfaceProps> = ({ dispatch, message
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  const handlePlayTTS = async (text: string, messageId: string) => {
-    if (playingMessageId === messageId) return; // Already playing this one
-
-    try {
-      setPlayingMessageId(messageId);
-
-      const audioBase64 = await generateSpeech(text);
-
-      if (!audioBase64) {
-        throw new Error("Cloud TTS Failed to generate audio");
-      }
-
-      // Play the base64 audio directly (Gemini 2.0 Flash usually returns audio/wav compatible base64)
-      const audioUrl = `data:audio/wav;base64,${audioBase64}`;
-      const audio = new Audio(audioUrl);
-
-      audio.onended = () => setPlayingMessageId(null);
-      audio.onerror = () => setPlayingMessageId(null);
-
-      await audio.play();
-    } catch (error) {
-      console.error("TTS Error:", error);
-      setPlayingMessageId(null);
-    }
-  };
 
   const runMedicalCheck = (type: string) => {
     handleSend(`Check specifically for ${type} related issues based on my previous messages or image.`);
@@ -393,21 +367,7 @@ const TextChatInterface: React.FC<TextChatInterfaceProps> = ({ dispatch, message
                 </div>
               )}
 
-              {/* TTS Button (Model Only) */}
-              {msg.role === MessageRole.MODEL && (
-                <button
-                  onClick={() => handlePlayTTS(msg.text, msg.id)}
-                  disabled={playingMessageId === msg.id}
-                  className="absolute bottom-2 left-2 p-1.5 text-slate-400 hover:text-teal-600 hover:bg-slate-50 rounded-full transition-colors"
-                  title="Read Aloud"
-                >
-                  {playingMessageId === msg.id ? (
-                    <Loader2 className="w-4 h-4 animate-spin text-teal-600" />
-                  ) : (
-                    <Volume2 className="w-4 h-4" />
-                  )}
-                </button>
-              )}
+
 
               {/* Suggested Actions (Only for last model message) */}
               {msg.role === MessageRole.MODEL && msg.suggestedActions && msg === messages[messages.length - 1] && (

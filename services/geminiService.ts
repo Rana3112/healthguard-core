@@ -96,34 +96,7 @@ export const handleToolCall = async (
   return { result: 'Function executed successfully' };
 };
 
-// TTS Helper
-export async function generateSpeech(text: string): Promise<string | null> {
-  if (!process.env.API_KEY) return null;
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-  try {
-    // Truncate text if too long to prevent latency issues or model limits
-    // For now, assume reasonable length or just take the first 500 chars if huge
-    const textToSpeak = text.length > 1000 ? text.substring(0, 1000) + "..." : text;
-
-    const response = await ai.models.generateContent({
-      model: "gemini-2.0-flash-exp",
-      contents: [{ parts: [{ text: textToSpeak }] }],
-      config: {
-        responseModalities: [Modality.AUDIO],
-        speechConfig: {
-          voiceConfig: {
-            prebuiltVoiceConfig: { voiceName: 'Kore' },
-          },
-        },
-      },
-    });
-    return response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data || null;
-  } catch (e) {
-    console.warn("TTS generation failed", e);
-    return null;
-  }
-}
 
 // Standard Text/Multimodal Chat
 import { sendMessageToOpenRouter } from './openRouterService';
@@ -624,12 +597,8 @@ export const sendMessageToAgent = async (
     }
   }
 
-  // Generate Audio from Final Text (optional, can be disabled for fast mode to save time, but user might want it)
-  // ... (Sending empty text to TTS might fail, so check)
+  // TTS Feature completely removed per user request
   let audioBase64 = null;
-  if (finalText && finalText.length > 0) {
-    audioBase64 = await generateSpeech(finalText);
-  }
 
   return {
     text: finalText || "I processed your request.",

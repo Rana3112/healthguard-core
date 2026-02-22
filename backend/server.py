@@ -57,7 +57,8 @@ def load_local_exercises():
 
 # --- Removed Local TTS and OCR Setup for Cloud Optimization ---
 
-
+# Load exercise data on startup
+load_local_exercises()
 
 
 # --- Removed /tts and /ocr Endpoints (Now using Gemini Cloud Voice) ---

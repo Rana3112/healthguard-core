@@ -284,14 +284,13 @@ def get_exercises_by_target():
 
 
 # --- AI Workout Instructor ---
-OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 
 @app.route('/generate_workout', methods=['POST'])
 def generate_workout():
     """Generate a workout plan using OpenRouter LLM and enrich with ExerciseDB data."""
-    if not OPENROUTER_API_KEY:
-        return jsonify({"error": "OPENROUTER_API_KEY not configured"}), 500
-    
+    if not GROQ_API_KEY:
+        return jsonify({"error": "GROQ_API_KEY not configured"}), 500
     data = request.json
     age = data.get('age')
     weight = data.get('weight')
@@ -302,10 +301,10 @@ def generate_workout():
         return jsonify({"error": "Missing required fields"}), 400
 
     # Ensure key is stripped of whitespace
-    api_key_clean = OPENROUTER_API_KEY.strip()
+    api_key_clean = GROQ_API_KEY.strip()
     
     if not api_key_clean:
-        return jsonify({"error": "OPENROUTER_API_KEY is empty"}), 500
+        return jsonify({"error": "GROQ_API_KEY is empty"}), 500
 
     try:
         import requests as req
@@ -385,21 +384,21 @@ def generate_workout():
         }
         
         payload = {
-            "model": "meta-llama/llama-3.1-70b-instruct",
+            "model": "llama-3.3-70b-versatile",
             "messages": [
-                {"role": "system", "content": "You are a JSON-only fitness API."},
+                {"role": "system", "content": "You are a JSON-only fitness API. Always format your output as valid JSON matching the exact requested structure."},
                 {"role": "user", "content": prompt}
             ],
             "temperature": 0.7,
             "response_format": {"type": "json_object"}
         }
 
-        print("[Generate] Sending request to OpenRouter...")
+        print("[Generate] Sending request to Groq...")
         try:
-            resp = req.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload, timeout=45) # Increased timeout
-            print(f"[Generate] OpenRouter status: {resp.status_code}")
+            resp = req.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=payload, timeout=20) 
+            print(f"[Generate] Groq status: {resp.status_code}")
         except Exception as e:
-            print(f"[Generate] OpenRouter Request Failed: {e}")
+            print(f"[Generate] Groq Request Failed: {e}")
             return jsonify({"error": f"LLM Request Failed: {str(e)}"}), 500
         
         if resp.status_code != 200:

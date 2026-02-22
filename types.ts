@@ -34,6 +34,7 @@ export interface ChatMessage {
     results: MedicinePriceResult[];
     cheapest: MedicinePriceResult | null;
   };
+  showPharmacyMap?: boolean;
   timestamp?: number;
 }
 

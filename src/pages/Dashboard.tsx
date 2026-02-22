@@ -84,6 +84,7 @@ const Dashboard: React.FC = () => {
     const [modelMode, setModelMode] = useState<ModelMode>('standard');
     const [showSettings, setShowSettings] = useState(false);
     const [showNotifications, setShowNotifications] = useState(false);
+    const [pendingQuickTool, setPendingQuickTool] = useState<string | null>(null);
     const { user } = useAuth();
     const navigate = useNavigate();
 
@@ -131,40 +132,29 @@ const Dashboard: React.FC = () => {
                         <span className="text-sm font-medium text-slate-700 dark:text-slate-300">HealthGuard Assistant</span>
                     </div>
 
-                    {/* Mode Selectors (Visible on larger screens) */}
+
+                    {/* Quick Tool Shortcuts (Header) */}
                     <div className="hidden md:flex items-center gap-2">
-                        <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-full border border-slate-200 dark:border-slate-700">
-                            <button
-                                onClick={() => setModelMode('fast')}
-                                className={`flex items-center gap-1.5 px-4 py-1.5 rounded-full text-[12px] font-medium transition-all ${modelMode === 'fast' ? 'bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-transparent'}`}
-                            >
-                                <Zap className={`w-3.5 h-3.5 ${modelMode === 'fast' ? 'text-amber-500' : ''}`} /> Fast
-                            </button>
-                            <button
-                                onClick={() => setModelMode('standard')}
-                                className={`flex items-center gap-1.5 px-4 py-1.5 rounded-full text-[12px] font-medium transition-all ${modelMode === 'standard' ? 'bg-teal-50 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400 border border-teal-200 dark:border-teal-800 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-transparent'}`}
-                            >
-                                <Sparkles className={`w-3.5 h-3.5 ${modelMode === 'standard' ? 'text-teal-500' : ''}`} /> Standard
-                            </button>
-                            <button
-                                onClick={() => setModelMode('thinking')}
-                                className={`flex items-center gap-1.5 px-4 py-1.5 rounded-full text-[12px] font-medium transition-all ${modelMode === 'thinking' ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-transparent'}`}
-                            >
-                                <BrainCircuit className={`w-3.5 h-3.5 ${modelMode === 'thinking' ? 'text-indigo-500' : ''}`} /> Deep Think
-                            </button>
-                            <button
-                                onClick={() => setModelMode('vision')}
-                                className={`flex items-center gap-1.5 px-4 py-1.5 rounded-full text-[12px] font-medium transition-all ${modelMode === 'vision' ? 'bg-fuchsia-50 dark:bg-fuchsia-900/30 text-fuchsia-600 dark:text-fuchsia-400 border border-fuchsia-200 dark:border-fuchsia-800 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-transparent'}`}
-                            >
-                                <Eye className={`w-3.5 h-3.5 ${modelMode === 'vision' ? 'text-fuchsia-500' : ''}`} /> Vision
-                            </button>
-                            <button
-                                onClick={() => setModelMode('agent')}
-                                className={`flex items-center gap-1.5 px-4 py-1.5 rounded-full text-[12px] font-medium transition-all ${modelMode === 'agent' ? 'bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-transparent'}`}
-                            >
-                                <Bot className={`w-3.5 h-3.5 ${modelMode === 'agent' ? 'text-rose-500' : ''}`} /> Agent
-                            </button>
-                        </div>
+                        <button onClick={() => setPendingQuickTool('Symptoms')} data-quicktool="Symptoms" className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 dark:bg-red-900/20 text-red-500 dark:text-red-400 rounded-xl text-[11px] font-bold border border-red-100 dark:border-red-800/30 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors whitespace-nowrap">
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
+                            Check Symptoms
+                        </button>
+                        <button onClick={() => setPendingQuickTool('Medicines')} data-quicktool="Medicines" className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 dark:bg-blue-900/20 text-blue-500 dark:text-blue-400 rounded-xl text-[11px] font-bold border border-blue-100 dark:border-blue-800/30 hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors whitespace-nowrap">
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" /></svg>
+                            Analyze Medicine
+                        </button>
+                        <button onClick={() => setPendingQuickTool('Pharmacy')} data-quicktool="Pharmacy" className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-50 dark:bg-orange-900/20 text-orange-500 dark:text-orange-400 rounded-xl text-[11px] font-bold border border-orange-100 dark:border-orange-800/30 hover:bg-orange-100 dark:hover:bg-orange-900/30 transition-colors whitespace-nowrap">
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                            Nearby Pharmacy
+                        </button>
+                        <button onClick={() => setPendingQuickTool('Report')} data-quicktool="Report" className="flex items-center gap-1.5 px-3 py-1.5 bg-teal-50 dark:bg-teal-900/20 text-teal-500 dark:text-teal-400 rounded-xl text-[11px] font-bold border border-teal-100 dark:border-teal-800/30 hover:bg-teal-100 dark:hover:bg-teal-900/30 transition-colors whitespace-nowrap">
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                            Analyze Report
+                        </button>
+                        <button onClick={() => setPendingQuickTool('Drugs')} data-quicktool="Drugs" className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-50 dark:bg-purple-900/20 text-purple-500 dark:text-purple-400 rounded-xl text-[11px] font-bold border border-purple-100 dark:border-purple-800/30 hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors whitespace-nowrap">
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.618 5.984A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
+                            Drug Interactions
+                        </button>
                     </div>
 
                     {/* Right Actions */}
@@ -201,6 +191,12 @@ const Dashboard: React.FC = () => {
                             onMessagesChange={handleMessagesChange}
                             modelMode={modelMode}
                             setModelMode={setModelMode}
+                            pendingQuickTool={pendingQuickTool}
+                            onQuickToolConsumed={() => setPendingQuickTool(null)}
+                            onOpenDrugInteractions={() => {
+                                setRightPanel('drugs');
+                                setActiveRightSidebar(true);
+                            }}
                         />
                     ) : (
                         <LiveVoiceInterface onAgentAction={dispatch} />

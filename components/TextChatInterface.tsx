@@ -1,11 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Mic, Image, Loader2, Sparkles, Activity, Pill, MapPin, Volume2, Square, FileSearch, ShieldAlert } from 'lucide-react';
+import { Send, Mic, Image, Loader2, Sparkles, Activity, Pill, MapPin, Volume2, Square, FileSearch, ShieldAlert, Zap, BrainCircuit, Eye, Bot } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
 import { sendMessageToAgent, ModelMode } from '../services/geminiService';
 import { AgentAction, ChatMessage, MessageRole } from '../types';
 import MedicinePriceCard from './MedicinePriceCard';
+import NearbyPharmacyMap from './NearbyPharmacyMap';
 
 interface TextChatInterfaceProps {
   dispatch: React.Dispatch<AgentAction>;
@@ -14,9 +15,13 @@ interface TextChatInterfaceProps {
   onMessagesChange: (messages: ChatMessage[]) => void;
   modelMode: ModelMode;
   setModelMode: (mode: ModelMode) => void;
+  onQuickTool?: (type: string) => void;
+  pendingQuickTool?: string | null;
+  onQuickToolConsumed?: () => void;
+  onOpenDrugInteractions?: () => void;
 }
 
-const TextChatInterface: React.FC<TextChatInterfaceProps> = ({ dispatch, messages, setMessages, onMessagesChange, modelMode, setModelMode }) => {
+const TextChatInterface: React.FC<TextChatInterfaceProps> = ({ dispatch, messages, setMessages, onMessagesChange, modelMode, setModelMode, onQuickTool, pendingQuickTool, onQuickToolConsumed, onOpenDrugInteractions }) => {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [selectedImage, setSelectedImage] = useState<{ file: File, base64: string } | null>(null);
@@ -28,6 +33,8 @@ const TextChatInterface: React.FC<TextChatInterfaceProps> = ({ dispatch, message
   const fileInputRef = useRef<HTMLInputElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<BlobPart[]>([]);
+  // Stores a prompt to auto-send right after the user picks an image (for vision quick tools)
+  const pendingAutoPromptRef = useRef<string | null>(null);
 
   // Scroll to bottom
   const scrollToBottom = () => {
@@ -133,14 +140,15 @@ const TextChatInterface: React.FC<TextChatInterfaceProps> = ({ dispatch, message
   }
 
   // Send Message Handler
-  const handleSend = async (text: string) => {
-    if (!text.trim() && !selectedImage) return;
+  const handleSend = async (text: string, imageOverride?: { file: File, base64: string } | null) => {
+    const imageToUse = imageOverride !== undefined ? imageOverride : selectedImage;
+    if (!text.trim() && !imageToUse) return;
 
     const newMessage: ChatMessage = {
       id: Date.now().toString(),
       role: MessageRole.USER,
       text: text,
-      image: selectedImage?.base64,
+      image: imageToUse?.base64,
       timestamp: Date.now()
     };
 
@@ -148,8 +156,8 @@ const TextChatInterface: React.FC<TextChatInterfaceProps> = ({ dispatch, message
     setMessages(updatedMessages);
     setIsLoading(true);
 
-    // Reset inputs
-    const imageToSend = selectedImage; // Keep ref for API
+    // Reset inputs — always clear selectedImage to prevent stale images on next send
+    const imageToSend = imageToUse;
     setSelectedImage(null);
 
     try {
@@ -208,15 +216,21 @@ const TextChatInterface: React.FC<TextChatInterfaceProps> = ({ dispatch, message
       const file = e.target.files[0];
       const reader = new FileReader();
       reader.onloadend = () => {
-        setSelectedImage({
-          file,
-          base64: reader.result as string
-        });
-        // Auto-switch to Vision Mode
+        const imageData = { file, base64: reader.result as string };
+        setSelectedImage(imageData);
         setModelMode('vision');
+        // If a quick tool was waiting for an upload, auto-send the prompt immediately
+        if (pendingAutoPromptRef.current) {
+          const prompt = pendingAutoPromptRef.current;
+          pendingAutoPromptRef.current = null;
+          // Use a tiny delay so React can flush the setSelectedImage state first
+          setTimeout(() => handleSend(prompt, imageData), 50);
+        }
       };
       reader.readAsDataURL(file);
     }
+    // Reset input so same file can be re-selected
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const handlePlayTTS = async (text: string, messageId: string) => {
@@ -249,6 +263,54 @@ const TextChatInterface: React.FC<TextChatInterfaceProps> = ({ dispatch, message
   const runMedicalCheck = (type: string) => {
     handleSend(`Check specifically for ${type} related issues based on my previous messages or image.`);
   };
+
+  // Handle quick tool triggers from the header buttons
+  useEffect(() => {
+    if (!pendingQuickTool) return;
+
+    switch (pendingQuickTool) {
+      // Vision mode — upload symptom document/photo, auto-submit analysis
+      case 'Symptoms':
+        setModelMode('vision');
+        pendingAutoPromptRef.current = 'Analyze this symptom document or image. Identify all symptoms mentioned, assess their severity, suggest possible conditions or causes, and recommend next steps including home remedies and when to see a doctor. Format the results clearly.';
+        fileInputRef.current?.click();
+        break;
+
+      // Vision mode — show file dialog, auto-submit prompt once image chosen
+      case 'Medicines':
+        setModelMode('vision');
+        pendingAutoPromptRef.current = 'Analyze this medicine. Identify the medicine name, its uses, dosage instructions, side effects, warnings, and any important drug interactions. Format the results clearly.';
+        fileInputRef.current?.click();
+        break;
+
+      // Pharmacy — switch to Agent mode, show interactive map with pharmacy data
+      case 'Pharmacy': {
+        setModelMode('agent');
+        const pharmacyMsg: ChatMessage = {
+          id: Date.now().toString(),
+          role: MessageRole.MODEL,
+          text: '📍 Searching for nearby pharmacies and medical stores around your location...',
+          showPharmacyMap: true,
+          timestamp: Date.now(),
+        };
+        setMessages(prev => [...prev, pharmacyMsg]);
+        break;
+      }
+
+      // Vision mode — show file dialog, auto-submit prompt once image chosen
+      case 'Report':
+        setModelMode('vision');
+        pendingAutoPromptRef.current = 'Analyze this medical report. Extract ALL lab values and test results. For each value: show the parameter name, measured value, normal range, and status (✅ Normal, ⬆️ High, ⬇️ Low). Flag any critical or abnormal values. Then provide a summary of overall health and actionable recommendations. Format results in a clear table.';
+        fileInputRef.current?.click();
+        break;
+
+      // Redirect to the dedicated Drug Interaction tool in the right sidebar
+      case 'Drugs':
+        onOpenDrugInteractions?.();
+        break;
+    }
+    onQuickToolConsumed?.();
+  }, [pendingQuickTool]);
 
   const getPlaceholder = () => {
     switch (modelMode) {
@@ -325,6 +387,13 @@ const TextChatInterface: React.FC<TextChatInterfaceProps> = ({ dispatch, message
                 />
               )}
 
+              {/* Pharmacy Map Card (Model Only) */}
+              {msg.showPharmacyMap && (
+                <div className="mt-3">
+                  <NearbyPharmacyMap />
+                </div>
+              )}
+
               {/* TTS Button (Model Only) */}
               {msg.role === MessageRole.MODEL && (
                 <button
@@ -382,26 +451,26 @@ const TextChatInterface: React.FC<TextChatInterfaceProps> = ({ dispatch, message
       {/* Sticky Input Area */}
       <div className={`p-4 backdrop-blur-md border-t border-slate-100 transition-colors ${modelMode === 'agent' ? 'bg-purple-50/80' : 'bg-white/80'}`}>
         <div className="max-w-4xl mx-auto">
-          {/* Quick Tools */}
-          {messages.length <= 1 && (
-            <div className="flex gap-2 mb-4 overflow-x-auto pb-2 scrollbar-hide">
-              <button onClick={() => runMedicalCheck('Symptoms')} className="flex items-center gap-2 px-4 py-2 bg-red-50 text-red-600 rounded-xl text-xs font-bold border border-red-100 hover:bg-red-100 transition-colors whitespace-nowrap">
-                <Activity className="w-4 h-4" /> Check Symptoms
+          {/* Mode Switcher (above input bar) */}
+          <div className="flex justify-center mb-3">
+            <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-full border border-slate-200 dark:border-slate-700 gap-0.5">
+              <button onClick={() => setModelMode('fast')} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-medium transition-all ${modelMode === 'fast' ? 'bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-transparent'}`}>
+                <Zap className={`w-3 h-3 ${modelMode === 'fast' ? 'text-amber-500' : ''}`} /> Fast
               </button>
-              <button onClick={() => runMedicalCheck('Medicines')} className="flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-600 rounded-xl text-xs font-bold border border-blue-100 hover:bg-blue-100 transition-colors whitespace-nowrap">
-                <Pill className="w-4 h-4" /> Analyze Medicine
+              <button onClick={() => setModelMode('standard')} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-medium transition-all ${modelMode === 'standard' ? 'bg-teal-50 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400 border border-teal-200 dark:border-teal-800 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-transparent'}`}>
+                <Sparkles className={`w-3 h-3 ${modelMode === 'standard' ? 'text-teal-500' : ''}`} /> Standard
               </button>
-              <button onClick={() => handleSend("Find nearby pharmacies")} className="flex items-center gap-2 px-4 py-2 bg-orange-50 text-orange-600 rounded-xl text-xs font-bold border border-orange-100 hover:bg-orange-100 transition-colors whitespace-nowrap">
-                <MapPin className="w-4 h-4" /> Nearby Pharmacy
+              <button onClick={() => setModelMode('thinking')} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-medium transition-all ${modelMode === 'thinking' ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-transparent'}`}>
+                <BrainCircuit className={`w-3 h-3 ${modelMode === 'thinking' ? 'text-indigo-500' : ''}`} /> Deep Think
               </button>
-              <button onClick={() => { setModelMode('vision'); handleSend("Analyze this medical report. Extract ALL lab values and test results. For each value: show the parameter name, measured value, normal range, and status (✅ Normal, ⬆️ High, ⬇️ Low). Flag any critical or abnormal values. Then provide a summary of overall health and actionable recommendations. Format results in a clear table."); }} className="flex items-center gap-2 px-4 py-2 bg-teal-50 text-teal-600 rounded-xl text-xs font-bold border border-teal-100 hover:bg-teal-100 transition-colors whitespace-nowrap">
-                <FileSearch className="w-4 h-4" /> Analyze Report
+              <button onClick={() => setModelMode('vision')} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-medium transition-all ${modelMode === 'vision' ? 'bg-fuchsia-50 dark:bg-fuchsia-900/30 text-fuchsia-600 dark:text-fuchsia-400 border border-fuchsia-200 dark:border-fuchsia-800 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-transparent'}`}>
+                <Eye className={`w-3 h-3 ${modelMode === 'vision' ? 'text-fuchsia-500' : ''}`} /> Vision
               </button>
-              <button onClick={() => handleSend("I want to check drug interactions. Please ask me which medicines I'm taking so you can check for dangerous interactions between them.")} className="flex items-center gap-2 px-4 py-2 bg-purple-50 text-purple-600 rounded-xl text-xs font-bold border border-purple-100 hover:bg-purple-100 transition-colors whitespace-nowrap">
-                <ShieldAlert className="w-4 h-4" /> Drug Interactions
+              <button onClick={() => setModelMode('agent')} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-medium transition-all ${modelMode === 'agent' ? 'bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-transparent'}`}>
+                <Bot className={`w-3 h-3 ${modelMode === 'agent' ? 'text-rose-500' : ''}`} /> Agent
               </button>
             </div>
-          )}
+          </div>
 
           {/* Image Preview */}
           {selectedImage && (

@@ -1,13 +1,5 @@
 flask
 flask-cors
-pocket-tts
-soundfile
-transformers
-torch
-torchvision
-pillow
-timm
-einops
 requests
 python-dotenv
 browser-use

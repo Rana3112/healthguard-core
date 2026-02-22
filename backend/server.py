@@ -1,13 +1,8 @@
 import os
-import io
-import time
 import json
-import soundfile as sf
-import torch
+import time
 from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
-from PIL import Image
-from transformers import AutoModelForCausalLM, AutoProcessor
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -62,122 +57,12 @@ def load_local_exercises():
 
 load_local_exercises()
 
-# --- TTS Setup (Optional/Graceful Fallback) ---
-tts = None
-default_state = None
-try:
-    print("Loading Pocket TTS model...")
-    from pocket_tts import TTSModel
-    tts = TTSModel.load_model()
-    print("Pocket TTS model loaded.")
-    print("Loading default voice state...")
-    default_state = tts.get_state_for_audio_prompt('cosette')
-    print("Default voice state loaded.")
-except Exception as e:
-    print(f"WARNING: Pocket TTS failed to load. Voice features will be disabled. Error: {e}")
-
-# --- GLM-OCR Setup ---
-ocr_model = None
-ocr_processor = None
-
-def load_ocr_model():
-    global ocr_model, ocr_processor
-    try:
-        print("Loading GLM-OCR model (zai-org/glm-ocr)...")
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-        print(f"Using device: {device}")
-        
-        ocr_model = AutoModelForCausalLM.from_pretrained(
-            "zai-org/glm-ocr",
-            trust_remote_code=True,
-            torch_dtype=torch.float16 if device == "cuda" else torch.float32,
-            device_map="auto" if device == "cuda" else None
-        )
-        if device == "cpu":
-            ocr_model = ocr_model.to("cpu").float()
-
-        ocr_processor = AutoProcessor.from_pretrained("zai-org/glm-ocr", trust_remote_code=True)
-        print("GLM-OCR model loaded successfully.")
-    except Exception as e:
-        print(f"ERROR: Failed to load GLM-OCR model. OCR features will be disabled. Error: {e}")
-
-# Load OCR model on startup (can be lazy loaded if preferred, but doing eager for now)
-load_ocr_model()
+# --- Removed OCR and TTS Setup for Memory Optimization ---
 
 
-@app.route('/tts', methods=['POST'])
-def generate_speech():
-    global tts, default_state
-    if not tts or not default_state:
-        return jsonify({"error": "TTS system is not active (failed to load)."}), 503
 
-    try:
-        data = request.json
-        text = data.get('text', '')
-        
-        if not text:
-            return jsonify({"error": "No text provided"}), 400
+# --- Removed /tts and /ocr Endpoints ---
 
-        print(f"Generating audio for: {text[:50]}...")
-        
-        # Generate audio using the model state
-        audio = tts.generate_audio(default_state, text)
-        
-        # If it's a tensor, convert to numpy
-        if hasattr(audio, 'cpu'):
-            audio = audio.cpu().numpy()
-            
-        # Ensure it's 1D or 2D for soundfile
-        if len(audio.shape) > 1 and audio.shape[0] == 1:
-            audio = audio.squeeze()
-            
-        # Convert to WAV in-memory
-        wav_buffer = io.BytesIO()
-        sf.write(wav_buffer, audio, 24000, format='WAV')
-        wav_buffer.seek(0)
-        
-        return send_file(
-            wav_buffer,
-            mimetype="audio/wav",
-            as_attachment=False,
-            download_name="output.wav"
-        )
-
-    except Exception as e:
-        print(f"Error generating speech: {e}")
-        return jsonify({"error": str(e)}), 500
-
-@app.route('/ocr', methods=['POST'])
-def run_ocr():
-    global ocr_model, ocr_processor
-    if not ocr_model or not ocr_processor:
-         return jsonify({"error": "OCR model is not active (failed to load)."}), 503
-
-    try:
-        if 'image' not in request.files:
-            return jsonify({"error": "No image file provided"}), 400
-        
-        file = request.files['image']
-        image = Image.open(file.stream).convert('RGB')
-        
-        print("Running OCR on image...")
-        
-        # GLM-OCR Inference Logic
-        # Note: The prompt usually needs to be formatted for the model
-        # Based on standard multimodal usage:
-        inputs = ocr_processor(images=image, text="Describe this image in detail and extract text.", return_tensors="pt").to(ocr_model.device)
-        
-        # Generate text
-        with torch.no_grad():
-            generated_ids = ocr_model.generate(**inputs, max_new_tokens=1024)
-            generated_text = ocr_processor.batch_decode(generated_ids, skip_special_tokens=True)[0]
-
-        print("OCR Complete.")
-        return jsonify({"text": generated_text})
-
-    except Exception as e:
-        print(f"Error running OCR: {e}")
-        return jsonify({"error": str(e)}), 500
 
 
 # --- Medicine Price Search (SerpAPI) ---

@@ -7,42 +7,7 @@ export type ModelMode = 'fast' | 'standard' | 'thinking' | 'vision' | 'agent';
 
 // Tools Definition for Agentic AI
 
-// Helper to convert Base64 to Blob for OCR upload
-const base64ToBlob = (base64: string, contentType: string = 'image/jpeg'): Blob => {
-  const byteCharacters = atob(base64.split(',')[1]);
-  const byteArrays = [];
-  for (let offset = 0; offset < byteCharacters.length; offset += 512) {
-    const slice = byteCharacters.slice(offset, offset + 512);
-    const byteNumbers = new Array(slice.length);
-    for (let i = 0; i < slice.length; i++) {
-      byteNumbers[i] = slice.charCodeAt(i);
-    }
-    const byteArray = new Uint8Array(byteNumbers);
-    byteArrays.push(byteArray);
-  }
-  return new Blob(byteArrays, { type: contentType });
-};
-
-// Helper: Perform OCR via Backend
-const getOCRText = async (imageBase64: string): Promise<string> => {
-  try {
-    const blob = base64ToBlob(imageBase64);
-    const formData = new FormData();
-    formData.append('image', blob, 'image.jpg');
-
-    const response = await fetch('http://localhost:5001/ocr', {
-      method: 'POST',
-      body: formData
-    });
-
-    if (!response.ok) return "";
-    const data = await response.json();
-    return data.text || "";
-  } catch (error) {
-    console.error("Auto-OCR Failed:", error);
-    return "";
-  }
-};
+// Tools Definition for Agentic AI
 const searchMedicineTool: FunctionDeclaration = {
   name: 'searchMedicine',
   description: 'Search for medicine or healthcare product prices across multiple Indian e-commerce platforms (Amazon, Flipkart, 1mg, Apollo, PharmEasy, Netmeds). Returns real prices and buy links sorted by cheapest. Use this when the user asks to buy, order, or find prices for any medicine, supplement, or health product.',

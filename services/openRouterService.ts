@@ -9,9 +9,22 @@ const getEnvVar = (key: string): string | undefined => {
     return undefined;
 };
 
-const OPENROUTER_API_KEY = getEnvVar('VITE_OPENROUTER_API_KEY') || getEnvVar('OPENROUTER_API_KEY');
 const SITE_URL = "http://localhost:5175"; // Optional, for OpenRouter rankings
 const SITE_NAME = "HealthGuard AI"; // Optional
+
+const getOpenRouterApiKey = (): string => {
+    const key = getEnvVar('VITE_OPENROUTER_API_KEY') || getEnvVar('OPENROUTER_API_KEY');
+
+    if (!key) {
+        throw new Error("Missing VITE_OPENROUTER_API_KEY in frontend environment.");
+    }
+
+    if (!key.startsWith('sk-or-v1-')) {
+        throw new Error("Invalid OpenRouter API key format. Expected key starting with 'sk-or-v1-'.");
+    }
+
+    return key;
+};
 
 export const sendMessageToOpenRouter = async (
     history: ChatMessage[],
@@ -20,11 +33,9 @@ export const sendMessageToOpenRouter = async (
     model: string = "openai/gpt-oss-120b", // Default to the requested model
     image?: string // Base64 image string
 ) => {
-    if (!OPENROUTER_API_KEY) {
-        throw new Error("OpenRouter API Key is missing. Please check .env.local");
-    }
-
     try {
+        const OPENROUTER_API_KEY = getOpenRouterApiKey();
+
         const messages: any[] = [
             { role: "system", content: systemInstruction + "\n\nIMPORTANT: At the very end of your response, provide 4-5 short, relevant options for what the USER might say next. \nINCLUDE ACTIONABLE ITEMS if relevant (e.g., 'Order this product', 'Find a doctor nearby', 'Set a reminder').\nFormat them exactly like this:\n>> suggested user reply 1\n>> suggested user reply 2\n>> suggested user reply 3\n>> suggested user reply 4\n>> suggested user reply 5" },
             ...history.filter(msg => msg.role !== MessageRole.SYSTEM).map(msg => {

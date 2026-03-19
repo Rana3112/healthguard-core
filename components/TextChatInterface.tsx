@@ -617,25 +617,31 @@ const TextChatInterface: React.FC<TextChatInterfaceProps> = ({ dispatch, message
 
         const clarificationCards: ClarificationCard[] = [];
 
-        setMessages(prev => ([
-          ...prev,
-          {
-            id: (Date.now() + 1).toString(),
-            role: MessageRole.MODEL,
-            text: "Before I provide the final analysis, please pick the most relevant question card.",
-            timestamp: Date.now(),
-            suggestedQuestionCards: clarificationCards
-          }
-        ]));
+        // Safety fallback: if no clarification cards are configured,
+        // skip this legacy step and continue to the normal model response flow.
+        if (clarificationCards.length === 0) {
+          // no-op: fall through to normal sendMessageToAgent flow below
+        } else {
+          setMessages(prev => ([
+            ...prev,
+            {
+              id: (Date.now() + 1).toString(),
+              role: MessageRole.MODEL,
+              text: "Before I provide the final analysis, please pick the most relevant question card.",
+              timestamp: Date.now(),
+              suggestedQuestionCards: clarificationCards
+            }
+          ]));
 
-        setClarificationFlow(prev => ({
-          isActive: true,
-          rootQuery,
-          selectedCards: [...prev.selectedCards, text]
-        }));
+          setClarificationFlow(prev => ({
+            isActive: true,
+            rootQuery,
+            selectedCards: [...prev.selectedCards, text]
+          }));
 
-        setIsLoading(false);
-        return;
+          setIsLoading(false);
+          return;
+        }
       }
 
       // Prepare history for API

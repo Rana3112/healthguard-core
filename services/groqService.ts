@@ -1,10 +1,19 @@
 import Groq from "groq-sdk";
 import { ChatMessage, MessageRole } from "../types";
 
+const getEnvVar = (key: string): string | undefined => {
+    const viteEnv = (import.meta as any)?.env?.[key];
+    if (viteEnv) return viteEnv;
+    if (typeof process !== 'undefined') {
+        return (process as any)?.env?.[key];
+    }
+    return undefined;
+};
+
 // Initialize Groq client
 // Note: In client-side Vite, we access it via process.env.GROQ_API_KEY (configured in vite.config.ts)
 const groq = new Groq({
-    apiKey: process.env.GROQ_API_KEY || "dummy_key",
+    apiKey: getEnvVar('VITE_GROQ_API_KEY') || getEnvVar('GROQ_API_KEY') || "dummy_key",
     dangerouslyAllowBrowser: true // Required for client-side use
 });
 

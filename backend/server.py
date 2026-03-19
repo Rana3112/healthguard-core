@@ -1,15 +1,19 @@
 import os
 import json
 import time
-from flask import Flask, request, jsonify, send_file
+from flask import Flask, request, jsonify, send_file, redirect
 from flask_cors import CORS
 from dotenv import load_dotenv
+import stripe
+import hmac
+import hashlib
+import requests as req
 
 # Load environment variables
 basedir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(basedir)
-load_dotenv(os.path.join(parent_dir, '.env'))
-load_dotenv(os.path.join(parent_dir, '.env.local'), override=True)
+load_dotenv(os.path.join(parent_dir, ".env"))
+load_dotenv(os.path.join(parent_dir, ".env.local"), override=True)
 
 api_key = os.getenv("OPENROUTER_API_KEY")
 groq_api_key = os.getenv("GROQ_API_KEY")
@@ -30,30 +34,44 @@ if MONGODB_URI:
     try:
         mongo_client = MongoClient(MONGODB_URI, tlsCAFile=certifi.where())
         db = mongo_client.get_default_database()
-        chat_collection = db['chats']
+        chat_collection = db["chats"]
+        users_collection = db["users"]  # New collection for subscription status
         print("[System] Successfully connected to MongoDB Atlas.")
     except Exception as e:
         print(f"[System] Failed to connect to MongoDB: {e}")
 
+# --- Stripe Setup ---
+stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
+STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET")
+STRIPE_PRICE_ID = os.getenv("STRIPE_PRICE_ID")
+STRIPE_SUCCESS_URL = "http://localhost:5173/app?payment=success"
+STRIPE_CANCEL_URL = "http://localhost:5173/app?payment=cancel"
+
 # --- Local Exercise Database ---
 LOCAL_EXERCISES = []
-IMAGE_BASE_URL = "https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/"
+IMAGE_BASE_URL = (
+    "https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/"
+)
+
 
 def load_local_exercises():
     """Load exercises from local JSON file."""
     global LOCAL_EXERCISES
     try:
-        json_path = os.path.join(basedir, 'data', 'exercises.json')
+        json_path = os.path.join(basedir, "data", "exercises.json")
         if os.path.exists(json_path):
-            with open(json_path, 'r', encoding='utf-8') as f:
+            with open(json_path, "r", encoding="utf-8") as f:
                 LOCAL_EXERCISES = json.load(f)
-            print(f"[System] Loaded {len(LOCAL_EXERCISES)} exercises from local database.")
+            print(
+                f"[System] Loaded {len(LOCAL_EXERCISES)} exercises from local database."
+            )
         else:
             print(f"[System] Warning: Local exercise DB not found at {json_path}")
             LOCAL_EXERCISES = []
     except Exception as e:
         print(f"[System] Failed to load local exercises: {e}")
         LOCAL_EXERCISES = []
+
 
 # --- Removed Local TTS and OCR Setup for Cloud Optimization ---
 
@@ -64,37 +82,40 @@ load_local_exercises()
 # --- Removed /tts and /ocr Endpoints (Now using Gemini Cloud Voice) ---
 
 
-
-
 # --- Medicine Price Search (SerpAPI) ---
 from dotenv import load_dotenv
+
 load_dotenv()  # Load .env file in backend/ directory
 
-@app.route('/search-medicine', methods=['POST'])
+
+@app.route("/search-medicine", methods=["POST"])
 def search_medicine_endpoint():
     """Search for medicine prices across e-commerce platforms via SerpAPI."""
     from agent_browser import search_medicine
-    
+
     data = request.json
-    query = data.get('query', '')
-    
+    query = data.get("query", "")
+
     if not query:
         return jsonify({"error": "Missing query parameter."}), 400
-    
+
     print(f"[Agent] Searching for medicine: '{query}'...")
-    
+
     try:
         results = search_medicine(query)
-        
-        if results.get('success'):
-            print(f"  Found {results.get('total_results', 0)} results. Cheapest: {results.get('cheapest', {}).get('price_display', 'N/A')}")
+
+        if results.get("success"):
+            print(
+                f"  Found {results.get('total_results', 0)} results. Cheapest: {results.get('cheapest', {}).get('price_display', 'N/A')}"
+            )
         else:
             print(f"  Search failed: {results.get('error', 'Unknown')}")
-        
+
         return jsonify(results)
     except Exception as e:
         print(f"[Agent] Search error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+
 
 # --- Auto-Order: Browser-Use Agent ---
 import threading
@@ -103,35 +124,37 @@ import queue as queue_module
 # Store active order sessions
 active_orders = {}
 
-@app.route('/auto-order', methods=['POST'])
+
+@app.route("/auto-order", methods=["POST"])
 def auto_order_endpoint():
     """Launch browser-use agent to auto-order a medicine. Returns SSE stream."""
     from flask import Response, stream_with_context
-    
+
     data = request.json
-    url = data.get('url', '')
-    product_title = data.get('product_title', '')
-    platform = data.get('platform', 'Other')
-    
+    url = data.get("url", "")
+    product_title = data.get("product_title", "")
+    platform = data.get("platform", "Other")
+
     if not url or not product_title:
         return jsonify({"error": "Missing url or product_title"}), 400
-    
+
     print(f"[Auto-Order] Starting order for: {product_title}")
     print(f"[Auto-Order] Platform: {platform}")
     print(f"[Auto-Order] URL: {url}")
-    
+
     order_id = str(int(time.time() * 1000))
     progress_list = []
     result_holder = [None]
-    
+
     def run_agent():
         from playwright_order_agent import start_order_sync
+
         result = start_order_sync(url, product_title, platform, progress_list)
         result_holder[0] = result
-    
+
     thread = threading.Thread(target=run_agent, daemon=True)
     thread.start()
-    
+
     def generate():
         sent_count = 0
         while thread.is_alive() or sent_count < len(progress_list):
@@ -140,190 +163,205 @@ def auto_order_endpoint():
                 yield f"data: {json.dumps(item)}\n\n"
                 sent_count += 1
             time.sleep(0.5)
-        
+
         # Send remaining items
         while sent_count < len(progress_list):
             item = progress_list[sent_count]
             yield f"data: {json.dumps(item)}\n\n"
             sent_count += 1
-        
+
         # Send final result
         result = result_holder[0]
         if result:
             yield f"data: {json.dumps({'step': 'final', 'result': result})}\n\n"
-        yield "data: {\"step\": \"done\"}\n\n"
-    
+        yield 'data: {"step": "done"}\n\n'
+
     return Response(
         stream_with_context(generate()),
-        mimetype='text/event-stream',
+        mimetype="text/event-stream",
         headers={
-            'Cache-Control': 'no-cache',
-            'X-Accel-Buffering': 'no',
-            'Access-Control-Allow-Origin': '*',
-        }
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Access-Control-Allow-Origin": "*",
+        },
     )
 
 
 # --- ExerciseDB Proxy (RapidAPI) ---
 # --- Local Exercise Logic ---
 
+
 def _fetch_exercise_details(target):
     """Fetch exercises from local DB for a specific target muscle."""
     candidates = []
     target_lower = target.lower()
-    
+
     # Map common AI terms to DB terms
     muscle_map = {
         "chest": "pectorals",
-        "back": "middle back", # or lats, lower back - we will fuzzy search
-        "legs": "quadriceps", # or hamstrings
+        "back": "middle back",  # or lats, lower back - we will fuzzy search
+        "legs": "quadriceps",  # or hamstrings
         "arms": "biceps",
         "shoulders": "shoulders",
         "abs": "abdominals",
         "core": "abdominals",
-        "cardio": "cardiovascular system"
+        "cardio": "cardiovascular system",
     }
-    
+
     # If target is in map, use the mapped term, otherwise use as is
     # We will also try to match if the target appears in primaryMuscles
     search_terms = [muscle_map.get(target_lower, target_lower), target_lower]
-    
+
     for ex in LOCAL_EXERCISES:
-        p_muscles = [m.lower() for m in (ex.get('primaryMuscles') or [])]
-        
+        p_muscles = [m.lower() for m in (ex.get("primaryMuscles") or [])]
+
         # Check if any search term matches any primary muscle
         match = False
         for term in search_terms:
             if any(term in pm for pm in p_muscles):
                 match = True
                 break
-        
+
         if match:
-             image_path = ex.get('images', [])[0] if ex.get('images') else None
-             gif_url = f"{IMAGE_BASE_URL}{image_path}" if image_path else None
-             
-             candidates.append({
-                "id": ex.get('id'),
-                "name": ex.get('name'),
-                "target": (ex.get('primaryMuscles') or ['unknown'])[0],
-                "equipment": ex.get('equipment'),
-                "gifUrl": gif_url,
-                "instructions": ex.get('instructions', [])
-            })
-    
+            image_path = ex.get("images", [])[0] if ex.get("images") else None
+            gif_url = f"{IMAGE_BASE_URL}{image_path}" if image_path else None
+
+            candidates.append(
+                {
+                    "id": ex.get("id"),
+                    "name": ex.get("name"),
+                    "target": (ex.get("primaryMuscles") or ["unknown"])[0],
+                    "equipment": ex.get("equipment"),
+                    "gifUrl": gif_url,
+                    "instructions": ex.get("instructions", []),
+                }
+            )
+
     return candidates
 
-@app.route('/muscles', methods=['GET'])
+
+@app.route("/muscles", methods=["GET"])
 def get_muscles():
     """Get list of target muscles from local DB."""
     if not LOCAL_EXERCISES:
         return jsonify([]), 200
-    
+
     muscles = set()
     for ex in LOCAL_EXERCISES:
-        for m in ex.get('primaryMuscles', []):
+        for m in ex.get("primaryMuscles", []):
             muscles.add(m)
-    
+
     return jsonify(sorted(list(muscles)))
 
-@app.route('/categories', methods=['GET'])
+
+@app.route("/categories", methods=["GET"])
 def get_categories():
     """Get list of equipment from local DB."""
     if not LOCAL_EXERCISES:
         return jsonify([]), 200
-        
+
     equipment = set()
     for ex in LOCAL_EXERCISES:
-        if ex.get('equipment'):
-            equipment.add(ex['equipment'])
-            
+        if ex.get("equipment"):
+            equipment.add(ex["equipment"])
+
     return jsonify(sorted(list(equipment)))
 
-@app.route('/exercises', methods=['GET'])
+
+@app.route("/exercises", methods=["GET"])
 def get_exercises_by_target():
     """Get exercises filtered by target muscle and equipment."""
-    target = request.args.get('muscle')
-    equip = request.args.get('equipment')
-    
+    target = request.args.get("muscle")
+    equip = request.args.get("equipment")
+
     if not target:
-        # If no target, return random 50 or empty? 
+        # If no target, return random 50 or empty?
         # FitnessPanel usually asks for target.
         # Let's return a sample
         return jsonify([]), 200
 
     results = []
     target_lower = target.lower()
-    
+
     for ex in LOCAL_EXERCISES:
         # Check muscle match (exact or containment)
-        p_muscles = [m.lower() for m in ex.get('primaryMuscles', [])]
+        p_muscles = [m.lower() for m in ex.get("primaryMuscles", [])]
         if not any(target_lower in pm for pm in p_muscles):
             continue
-            
-        # Check equipment match if provided
-        if equip and equip.lower() != ex.get('equipment', '').lower():
-            continue
-            
-        # Construct response object
-        image_path = ex.get('images', [])[0] if ex.get('images') else None
-        gif_url = f"{IMAGE_BASE_URL}{image_path}" if image_path else None
-        
-        results.append({
-            "id": ex.get('id'),
-            "name": ex.get('name'),
-            "target": target, # Use requested target for consistency
-            "bodyPart": ex.get('category', 'strength'),
-            "equipment": ex.get('equipment'),
-            "gifUrl": gif_url,
-            "secondaryMuscles": ex.get('secondaryMuscles', []),
-            "instructions": ex.get('instructions', [])
-        })
-        
-    return jsonify(results)
 
+        # Check equipment match if provided
+        if equip and equip.lower() != ex.get("equipment", "").lower():
+            continue
+
+        # Construct response object
+        image_path = ex.get("images", [])[0] if ex.get("images") else None
+        gif_url = f"{IMAGE_BASE_URL}{image_path}" if image_path else None
+
+        results.append(
+            {
+                "id": ex.get("id"),
+                "name": ex.get("name"),
+                "target": target,  # Use requested target for consistency
+                "bodyPart": ex.get("category", "strength"),
+                "equipment": ex.get("equipment"),
+                "gifUrl": gif_url,
+                "secondaryMuscles": ex.get("secondaryMuscles", []),
+                "instructions": ex.get("instructions", []),
+            }
+        )
+
+    return jsonify(results)
 
 
 # --- AI Workout Instructor ---
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 
-@app.route('/generate_workout', methods=['POST'])
+
+@app.route("/generate_workout", methods=["POST"])
 def generate_workout():
     """Generate a workout plan using OpenRouter LLM and enrich with ExerciseDB data."""
     if not GROQ_API_KEY:
         return jsonify({"error": "GROQ_API_KEY not configured"}), 500
     data = request.json
-    age = data.get('age')
-    weight = data.get('weight')
-    height = data.get('height')
-    diet_score = data.get('diet_score')
-    workout_intensity = data.get('workout_intensity', 'intermediate')
+    age = data.get("age")
+    weight = data.get("weight")
+    height = data.get("height")
+    diet_score = data.get("diet_score")
+    workout_intensity = data.get("workout_intensity", "intermediate")
     if not all([age, weight, height, diet_score]):
         return jsonify({"error": "Missing required fields"}), 400
 
     # Ensure key is stripped of whitespace
     api_key_clean = GROQ_API_KEY.strip()
-    
+
     if not api_key_clean:
         return jsonify({"error": "GROQ_API_KEY is empty"}), 500
 
     try:
         import requests as req
-        print(f"[Generate] Request received for Age {age}, {weight}kg, {height}cm, diet {diet_score}, intensity: {workout_intensity}")
-        
+
+        print(
+            f"[Generate] Request received for Age {age}, {weight}kg, {height}cm, diet {diet_score}, intensity: {workout_intensity}"
+        )
+
         intensity_map = {
             "naive": "Beginner / Light",
             "intermediate": "Intermediate / Moderate",
-            "aggressive": "Advanced / Aggressive"
+            "aggressive": "Advanced / Aggressive",
         }
-        intensity_label = intensity_map.get(str(workout_intensity).lower(), "Intermediate")
-        
+        intensity_label = intensity_map.get(
+            str(workout_intensity).lower(), "Intermediate"
+        )
+
         # Intensity-based exercise scaling
         intensity_rules = {
             "naive": "3-4 exercises per day, 2-3 sets each, 60-90 seconds rest between sets. Keep it simple and safe.",
             "intermediate": "5-6 exercises per day, 3-4 sets each, 45-60 seconds rest between sets. Moderate challenge.",
-            "aggressive": "7-8 exercises per day, 4-5 sets each, 30-45 seconds rest between sets. Push to the limit with supersets and dropsets."
+            "aggressive": "7-8 exercises per day, 4-5 sets each, 30-45 seconds rest between sets. Push to the limit with supersets and dropsets.",
         }
-        intensity_rule = intensity_rules.get(str(workout_intensity).lower(), intensity_rules["intermediate"])
+        intensity_rule = intensity_rules.get(
+            str(workout_intensity).lower(), intensity_rules["intermediate"]
+        )
 
         # 1. Prompt the LLM
         prompt = f"""
@@ -376,41 +414,50 @@ def generate_workout():
         6. The "nutrition" object with shakes and tips is REQUIRED.
         7. Follow the INTENSITY RULE strictly for exercise count and sets.
         """
-        
+
         headers = {
             "Authorization": f"Bearer {api_key_clean}",
             "Content-Type": "application/json",
-            "HTTP-Referer": "http://localhost:5001", 
+            "HTTP-Referer": "http://localhost:5001",
         }
-        
+
         payload = {
             "model": "llama-3.3-70b-versatile",
             "messages": [
-                {"role": "system", "content": "You are a JSON-only fitness API. Always format your output as valid JSON matching the exact requested structure."},
-                {"role": "user", "content": prompt}
+                {
+                    "role": "system",
+                    "content": "You are a JSON-only fitness API. Always format your output as valid JSON matching the exact requested structure.",
+                },
+                {"role": "user", "content": prompt},
             ],
             "temperature": 0.7,
-            "response_format": {"type": "json_object"}
+            "response_format": {"type": "json_object"},
         }
 
         print("[Generate] Sending request to Groq...")
         try:
-            resp = req.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=payload, timeout=20) 
+            resp = req.post(
+                "https://api.groq.com/openai/v1/chat/completions",
+                headers=headers,
+                json=payload,
+                timeout=20,
+            )
             print(f"[Generate] Groq status: {resp.status_code}")
         except Exception as e:
             print(f"[Generate] Groq Request Failed: {e}")
             return jsonify({"error": f"LLM Request Failed: {str(e)}"}), 500
-        
+
         if resp.status_code != 200:
             print(f"[Generate] LLM Error: {resp.text}")
             return jsonify({"error": f"LLM Error: {resp.text}"}), 500
-            
+
         llm_data = resp.json()
-        content = llm_data['choices'][0]['message']['content']
+        content = llm_data["choices"][0]["message"]["content"]
         print("[Generate] LLM Response received. Parsing JSON...")
-        
+
         # Parse JSON from LLM
         import json
+
         try:
             plan = json.loads(content)
         except:
@@ -424,42 +471,50 @@ def generate_workout():
 
         # 2. Enrich with Local Exercise Data
         print("[Generate] Enriching with Local Exercise DB...")
-        for day in plan.get('days', []):
-            for ex in day.get('exercises', []):
+        for day in plan.get("days", []):
+            for ex in day.get("exercises", []):
                 # Map common names to DB targets if needed, but _fetch_exercise_details handles most
-                raw_target = ex.get('target', '').lower()
-                
+                raw_target = ex.get("target", "").lower()
+
                 # Fetch candidates from local DB
                 candidates = _fetch_exercise_details(raw_target)
-                
+
                 match_found = False
                 if candidates:
                     # 1. Try to find equipment match
-                    equip = (ex.get('equipment') or '').lower()
-                    matches = [c for c in candidates if equip in (c.get('equipment') or '').lower()]
-                    
+                    equip = (ex.get("equipment") or "").lower()
+                    matches = [
+                        c
+                        for c in candidates
+                        if equip in (c.get("equipment") or "").lower()
+                    ]
+
                     if matches:
                         import random
+
                         best = random.choice(matches)
                         match_found = True
                     else:
                         # 2. Fallback to random candidate
                         import random
+
                         best = random.choice(candidates)
                         match_found = True
-                        ex['note'] = "Equipment variation"
+                        ex["note"] = "Equipment variation"
 
                     if match_found:
-                        ex['gifUrl'] = best.get('gifUrl')
-                        ex['db_id'] = best.get('id')
-                        ex['name'] = f"{best.get('name')} ({ex.get('name')})" # Combine names
-                        if not ex.get('instructions'):
-                            ex['instructions'] = best.get('instructions')
+                        ex["gifUrl"] = best.get("gifUrl")
+                        ex["db_id"] = best.get("id")
+                        ex["name"] = (
+                            f"{best.get('name')} ({ex.get('name')})"  # Combine names
+                        )
+                        if not ex.get("instructions"):
+                            ex["instructions"] = best.get("instructions")
 
                 if not match_found:
                     print(f"[Generate] No local DB match for {raw_target}")
                     # No fallback images - let the UI handle missing images cleanly
-                
+
         print("[Generate] Plan generation complete.")
         return jsonify(plan)
 
@@ -468,66 +523,70 @@ def generate_workout():
         return jsonify({"error": str(e)}), 500
 
 
-
-@app.route('/coach/chat', methods=['POST'])
+@app.route("/coach/chat", methods=["POST"])
 def coach_chat():
     """Chat with the AI Coach about the workout plan."""
     if not OPENROUTER_API_KEY:
         return jsonify({"error": "OPENROUTER_API_KEY not configured"}), 500
-    
+
     data = request.json
-    message = data.get('message')
-    plan = data.get('plan')
-    stats = data.get('stats')
-    history = data.get('history', [])
-    
+    message = data.get("message")
+    plan = data.get("plan")
+    stats = data.get("stats")
+    history = data.get("history", [])
+
     if not message:
         return jsonify({"error": "Message required"}), 400
 
     try:
         import requests as req
-        
+
         # Context Construction
         context = f"""
         Role: Expert Fitness Coach.
         User Stats: {stats}
-        Current Plan Goal: {plan.get('goal', 'General Fitness')}
-        Plan Overview: {plan.get('analysis', 'Standard Plan')}
+        Current Plan Goal: {plan.get("goal", "General Fitness")}
+        Plan Overview: {plan.get("analysis", "Standard Plan")}
         
         You are discussing their plan. Be encouraging, scientific, and clear.
         If they ask about an exercise in the plan, explain form or benefits.
         If they ask about diet, give general advice based on their goal.
         Keep answers concise (max 3-4 sentences unless detailed explanation needed).
         """
-        
+
         messages = [{"role": "system", "content": context}]
-        
+
         # Add limited history (last 6 messages) to save tokens but keep context
         for msg in history[-6:]:
-            messages.append({"role": msg['role'], "content": msg['content']})
-            
+            messages.append({"role": msg["role"], "content": msg["content"]})
+
         messages.append({"role": "user", "content": message})
-        
+
         headers = {
             "Authorization": f"Bearer {OPENROUTER_API_KEY}",
             "Content-Type": "application/json",
-            "HTTP-Referer": "http://localhost:5001", 
+            "HTTP-Referer": "http://localhost:5001",
         }
-        
+
         payload = {
             "model": "meta-llama/llama-3.1-70b-instruct",
             "messages": messages,
             "temperature": 0.7,
         }
 
-        resp = req.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload, timeout=30)
-        
+        resp = req.post(
+            "https://openrouter.ai/api/v1/chat/completions",
+            headers=headers,
+            json=payload,
+            timeout=30,
+        )
+
         if resp.status_code != 200:
             return jsonify({"error": f"LLM Error: {resp.text}"}), 500
-            
+
         llm_data = resp.json()
-        reply = llm_data['choices'][0]['message']['content']
-        
+        reply = llm_data["choices"][0]["message"]["content"]
+
         return jsonify({"reply": reply})
 
     except Exception as e:
@@ -535,68 +594,66 @@ def coach_chat():
         return jsonify({"error": str(e)}), 500
 
 
-@app.route('/api/transcribe', methods=['POST'])
+@app.route("/api/transcribe", methods=["POST"])
 def transcribe_audio():
     """Transcribe audio using Groq's Whisper API."""
     if not groq_api_key:
         return jsonify({"error": "GROQ_API_KEY not configured"}), 500
-        
-    if 'audio' not in request.files:
+
+    if "audio" not in request.files:
         return jsonify({"error": "No audio file provided"}), 400
-        
-    audio_file = request.files['audio']
-    
-    if audio_file.filename == '':
+
+    audio_file = request.files["audio"]
+
+    if audio_file.filename == "":
         return jsonify({"error": "No selected file"}), 400
-        
+
     try:
         import requests as req
-        
+
         url = "https://api.groq.com/openai/v1/audio/transcriptions"
-        headers = {
-            "Authorization": f"Bearer {groq_api_key}"
-        }
-        
+        headers = {"Authorization": f"Bearer {groq_api_key}"}
+
         # Groq expects a file tuple: (filename, file_object, content_type)
-        files = {
-            "file": (audio_file.filename, audio_file.read(), audio_file.mimetype)
-        }
-        data = {
-            "model": "whisper-large-v3",
-            "response_format": "json"
-        }
-        
+        files = {"file": (audio_file.filename, audio_file.read(), audio_file.mimetype)}
+        data = {"model": "whisper-large-v3", "response_format": "json"}
+
         resp = req.post(url, headers=headers, files=files, data=data, timeout=30)
-        
+
         if resp.status_code != 200:
             print(f"[Transcribe] Error from Groq: {resp.text}")
             return jsonify({"error": f"Transcription Error: {resp.text}"}), 500
-            
+
         transcription_data = resp.json()
-        text = transcription_data.get('text', '')
-        
+        text = transcription_data.get("text", "")
+
         return jsonify({"text": text.strip()})
-        
+
     except Exception as e:
         print(f"Error in transcribe_audio: {e}")
         return jsonify({"error": str(e)}), 500
 
 
 # --- MongoDB Chat Storage Endpoints ---
-@app.route('/api/chats/<user_id>', methods=['GET'])
+@app.route("/api/chats/<user_id>", methods=["GET"])
 def get_user_chats(user_id):
     if chat_collection is None:
         return jsonify({"error": "MongoDB not configured"}), 503
     try:
         # Fetch all chats for a user, sorted by updatedAt descending
-        cursor = chat_collection.find({"userId": user_id}, {"_id": 0}).sort("updatedAt", -1).limit(50)
+        cursor = (
+            chat_collection.find({"userId": user_id}, {"_id": 0})
+            .sort("updatedAt", -1)
+            .limit(50)
+        )
         chats = list(cursor)
         return jsonify(chats), 200
     except Exception as e:
         print(f"Error fetching chats: {e}")
         return jsonify({"error": str(e)}), 500
 
-@app.route('/api/chats/<user_id>', methods=['POST'])
+
+@app.route("/api/chats/<user_id>", methods=["POST"])
 def save_user_chat(user_id):
     if chat_collection is None:
         return jsonify({"error": "MongoDB not configured"}), 503
@@ -605,22 +662,21 @@ def save_user_chat(user_id):
         session_id = chat_data.get("id")
         if not session_id:
             return jsonify({"error": "Missing session ID"}), 400
-        
+
         # Attach the userId to the document
         chat_data["userId"] = user_id
-        
+
         # Upsert the chat session
         chat_collection.update_one(
-            {"id": session_id, "userId": user_id},
-            {"$set": chat_data},
-            upsert=True
+            {"id": session_id, "userId": user_id}, {"$set": chat_data}, upsert=True
         )
         return jsonify({"success": True}), 200
     except Exception as e:
         print(f"Error saving chat: {e}")
         return jsonify({"error": str(e)}), 500
 
-@app.route('/api/chats/<user_id>/<session_id>', methods=['DELETE'])
+
+@app.route("/api/chats/<user_id>/<session_id>", methods=["DELETE"])
 def delete_user_chat(user_id, session_id):
     if chat_collection is None:
         return jsonify({"error": "MongoDB not configured"}), 503
@@ -631,26 +687,28 @@ def delete_user_chat(user_id, session_id):
         print(f"Error deleting chat: {e}")
         return jsonify({"error": str(e)}), 500
 
+
 # ============================================================
 # Drug Interaction Checker
 # ============================================================
-@app.route('/check-interactions', methods=['POST'])
+@app.route("/check-interactions", methods=["POST"])
 def check_interactions():
     """Check drug interactions between multiple medicines using LLM."""
     if not OPENROUTER_API_KEY:
         return jsonify({"error": "OPENROUTER_API_KEY not configured"}), 500
-    
+
     data = request.json
-    medicines = data.get('medicines', [])
-    
+    medicines = data.get("medicines", [])
+
     if len(medicines) < 2:
         return jsonify({"error": "At least 2 medicines required"}), 400
-    
+
     api_key_clean = OPENROUTER_API_KEY.strip()
-    med_list = ', '.join(medicines)
-    
+    med_list = ", ".join(medicines)
+
     try:
         import requests as req
+
         prompt = f"""
         You are a Clinical Pharmacist AI. Analyze drug interactions between these medicines: {med_list}
         
@@ -678,38 +736,258 @@ def check_interactions():
         
         Be thorough and clinically accurate. If no interaction exists, still include the pair with severity "safe".
         """
-        
+
         headers = {
             "Authorization": f"Bearer {api_key_clean}",
             "Content-Type": "application/json",
             "HTTP-Referer": "http://localhost:5001",
         }
-        
+
         payload = {
             "model": "meta-llama/llama-3.1-70b-instruct",
             "messages": [
-                {"role": "system", "content": "You are a JSON-only clinical pharmacist API."},
-                {"role": "user", "content": prompt}
+                {
+                    "role": "system",
+                    "content": "You are a JSON-only clinical pharmacist API.",
+                },
+                {"role": "user", "content": prompt},
             ],
             "temperature": 0.3,
-            "response_format": {"type": "json_object"}
+            "response_format": {"type": "json_object"},
         }
-        
-        resp = req.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload, timeout=30)
-        
+
+        resp = req.post(
+            "https://openrouter.ai/api/v1/chat/completions",
+            headers=headers,
+            json=payload,
+            timeout=30,
+        )
+
         if resp.status_code != 200:
             return jsonify({"error": f"LLM Error: {resp.text}"}), 500
-        
+
         llm_data = resp.json()
-        content = llm_data['choices'][0]['message']['content']
-        
+        content = llm_data["choices"][0]["message"]["content"]
+
         import json
+
         result = json.loads(content)
         return jsonify(result)
-        
+
     except Exception as e:
         print(f"[Drug Interaction] Error: {e}")
         return jsonify({"error": str(e)}), 500
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5001)
+
+# ============================================================
+# OpenAI DeepThink Proxy
+# ============================================================
+@app.route("/api/openai-deepthink", methods=["POST"])
+def openai_deepthink_proxy():
+    try:
+        from flask import Response
+
+        data = request.json
+        data["stream"] = True
+        openai_api_key = os.getenv("OPENAI_API_KEY")
+
+        if not openai_api_key:
+            return jsonify(
+                {"error": "OPENAI_API_KEY is not configured on the server."}
+            ), 500
+
+        headers = {
+            "Authorization": f"Bearer {openai_api_key}",
+            "Accept": "text/event-stream",
+            "Content-Type": "application/json",
+        }
+        resp = req.post(
+            "https://api.openai.com/v1/chat/completions",
+            headers=headers,
+            json=data,
+            stream=True,
+            timeout=300,
+        )
+
+        if resp.status_code != 200:
+            return jsonify(
+                {"error": f"OpenAI API Error: {resp.text}"}
+            ), resp.status_code
+
+        def generate():
+            for chunk in resp.iter_lines():
+                if chunk:
+                    yield chunk + b"\n\n"
+
+        return Response(generate(), mimetype="text/event-stream")
+    except Exception as e:
+        print(f"[OpenAI Proxy] Error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+# ============================================================
+# Stripe & Subscription Persistence
+# ============================================================
+
+
+@app.route("/api/user-status/<user_id>", methods=["GET"])
+def get_user_status(user_id):
+    """Retrieve the Pro subscription status for a user."""
+    if users_collection is None:
+        return jsonify({"isPro": False, "error": "Database not available"}), 500
+
+    user_record = users_collection.find_one({"uid": user_id})
+    if user_record:
+        return jsonify({"isPro": user_record.get("isPro", False)})
+
+    # If no record, create one as free user
+    users_collection.insert_one(
+        {"uid": user_id, "isPro": False, "updatedAt": time.time()}
+    )
+    return jsonify({"isPro": False})
+
+
+@app.route("/api/create-checkout-session", methods=["POST"])
+def create_checkout_session():
+    """Start a Stripe Checkout session for the Pro subscription."""
+    data = request.json
+    user_id = data.get("userId")
+    user_email = data.get("email")
+
+    if not user_id:
+        return jsonify({"error": "User ID is required"}), 400
+
+    try:
+        checkout_session = stripe.checkout.Session.create(
+            customer_email=user_email,
+            payment_method_types=["card"],
+            line_items=[
+                {
+                    "price": STRIPE_PRICE_ID,
+                    "quantity": 1,
+                }
+            ],
+            mode="subscription",
+            success_url=STRIPE_SUCCESS_URL,
+            cancel_url=STRIPE_CANCEL_URL,
+            client_reference_id=user_id,
+            metadata={"user_id": user_id},
+        )
+        return jsonify({"url": checkout_session.url})
+    except Exception as e:
+        print(f"[Stripe] Checkout error: {e}")
+        return jsonify(error=str(e)), 500
+
+
+@app.route("/api/stripe-webhook", methods=["POST"])
+def stripe_webhook():
+    """Listen for Stripe events to update user Pro status."""
+    payload = request.data
+    sig_header = request.headers.get("Stripe-Signature")
+
+    try:
+        event = stripe.Webhook.construct_event(
+            payload, sig_header, STRIPE_WEBHOOK_SECRET
+        )
+    except Exception as e:
+        return jsonify(error=str(e)), 400
+
+    # Handle the checkout.session.completed event
+    if event["type"] == "checkout.session.completed":
+        session = event["data"]["object"]
+        user_id = session.get("client_reference_id")
+        if not user_id:
+            user_id = session.get("metadata", {}).get("user_id")
+
+        if user_id:
+            print(f"[Stripe] Payment success for user: {user_id}")
+            users_collection.update_one(
+                {"uid": user_id},
+                {"$set": {"isPro": True, "updatedAt": time.time()}},
+                upsert=True,
+            )
+
+    # Handle subscription cancellation
+    if event["type"] == "customer.subscription.deleted":
+        subscription = event["data"]["object"]
+        # This one is trickier as we need to map customer ID back to user ID
+        # Stripe webhooks should ideally send the user_id in metadata of the subscription too
+        # For this MVP, we will rely on session completion.
+        pass
+
+    return jsonify(success=True)
+
+
+# --- Nvidia Kimi K2.5 Deep Think Endpoint ---
+NVIDIA_API_KEY = os.getenv("NVIDIA_API_KEY")
+
+
+@app.route("/api/nvidia-deepthink", methods=["POST"])
+def nvidia_deepthink():
+    """Stream Kimi K2.5 (Nvidia) for Max Deep Think mode."""
+    if not NVIDIA_API_KEY:
+        return jsonify({"error": "NVIDIA_API_KEY not configured"}), 500
+
+    data = request.get_json()
+    messages = data.get("messages", [])
+
+    # Build payload for Nvidia's OpenAI-compatible API
+    nvidia_payload = {
+        "model": "moonshotai/kimi-k2.5",
+        "messages": messages,
+        "temperature": 1,
+        "top_p": 1,
+        "max_tokens": 16384,
+        "stream": True,
+        "extra_body": {"thinking": True},
+    }
+
+    try:
+        nvidia_response = req.post(
+            "https://integrate.api.nvidia.com/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {NVIDIA_API_KEY}",
+                "Content-Type": "application/json",
+                "Accept": "text/event-stream",
+            },
+            json=nvidia_payload,
+            stream=True,
+            timeout=120,
+        )
+
+        if nvidia_response.status_code != 200:
+            error_text = nvidia_response.text
+            print(f"[Nvidia API Error] {nvidia_response.status_code}: {error_text}")
+            return jsonify(
+                {
+                    "error": f"Nvidia API returned {nvidia_response.status_code}",
+                    "details": error_text,
+                }
+            ), nvidia_response.status_code
+
+        def generate():
+            for line in nvidia_response.iter_lines():
+                if line:
+                    decoded = line.decode("utf-8")
+                    yield decoded + "\n"
+            yield "data: [DONE]\n"
+
+        from flask import Response
+
+        return Response(
+            generate(),
+            mimetype="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "X-Accel-Buffering": "no",
+                "Access-Control-Allow-Origin": "*",
+            },
+        )
+
+    except Exception as e:
+        print(f"[Nvidia DeepThink Error] {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5001)

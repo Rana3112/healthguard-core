@@ -3,7 +3,7 @@ import { GoogleGenAI, Type, FunctionDeclaration, Tool, Schema, Modality } from "
 import { sendMessageToGroq } from './groqService';
 import { AgentAction, HealthOrder, HealthAlert, ChatMessage, MessageRole } from "../types";
 
-export type ModelMode = 'fast' | 'standard' | 'thinking' | 'vision' | 'agent';
+export type ModelMode = 'fast' | 'standard' | 'thinking' | 'max_deep_think' | 'vision' | 'agent';
 
 // Tools Definition for Agentic AI
 
@@ -124,12 +124,17 @@ export const sendMessageToAgent = async (
   image?: string,
   isEditRequest: boolean = false,
   userLocation?: { lat: number; lng: number } | null,
-  mode: ModelMode = 'standard'
+  mode: ModelMode = 'standard',
+  clinicalMemory?: string
 ): Promise<AgentResponse> => {
   // Initialize Gemini AI Client (Optional if only using Groq/OpenRouter)
   let ai: any = null;
-  if (process.env.API_KEY) {
-    ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const geminiApiKey =
+    (import.meta as any)?.env?.VITE_GEMINI_API_KEY ||
+    (import.meta as any)?.env?.API_KEY ||
+    (typeof process !== 'undefined' ? (process as any)?.env?.API_KEY : undefined);
+  if (geminiApiKey) {
+    ai = new GoogleGenAI({ apiKey: geminiApiKey });
   }
 
   // --- MODE ROUTING ---
@@ -215,6 +220,10 @@ export const sendMessageToAgent = async (
   if (mode === 'fast') {
     console.log("Using Llama 3.1 (Groq) for Fast Mode");
     const fastSystemPrompt = `You are HealthGuard. Response concisely. 
+    ${clinicalMemory ? `
+    PREVIOUS CLINICAL ANALYSIS MEMORY:
+    ${clinicalMemory}
+    Use this prior analysis as context for follow-up questions. Do not restart symptom questioning.` : ''}
      ${userLocation ? `User location: ${userLocation.lat}, ${userLocation.lng}` : ''}
      Guidelines: 1. Prioritize Indian home remedies. 2. Be direct.`;
 
@@ -226,6 +235,10 @@ export const sendMessageToAgent = async (
     console.log("Using GPT-OSS-120B (OpenRouter) for Thinking Mode");
     const thinkingSystemPrompt = `You are HealthGuard, an expert medical AI. 
     Analyze the user's health query deeply. Think step-by-step.
+    ${clinicalMemory ? `
+    PREVIOUS CLINICAL ANALYSIS MEMORY:
+    ${clinicalMemory}
+    Use this as context and do not repeat the initial intake questions.` : ''}
     ${userLocation ? `User location: ${userLocation.lat}, ${userLocation.lng}` : ''}
     Guidelines: 1. Provide detailed, reasoning-based advice. 2. Consider multiple possibilities.`;
 
@@ -265,6 +278,10 @@ export const sendMessageToAgent = async (
 
     const agentSystemPrompt = `You are HealthGuard, an automated shopping agent.
       The user is asking about medicines or health products.
+      ${clinicalMemory ? `
+      PREVIOUS CLINICAL ANALYSIS MEMORY:
+      ${clinicalMemory}
+      Use this prior clinical context when answering follow-up questions.` : ''}
       You have access to real-time pricing data.
       
       SEARCH RESULTS:
@@ -320,6 +337,10 @@ export const sendMessageToAgent = async (
     console.log("Using Llama 3.3 (Groq) for Standard Mode");
 
     const standardSystemPrompt = `You are HealthGuard, a compassionate Indian home healthcare assistant.
+    ${clinicalMemory ? `
+    PREVIOUS CLINICAL ANALYSIS MEMORY:
+    ${clinicalMemory}
+    Use this prior analysis as context for answering follow-up questions. Do not restart symptom questioning.` : ''}
     1. Prioritize 'Desi' Indian home remedies and affordable middle-class solutions.
     2. When suggesting diets or food, strictly use common, cheap Indian ingredients (e.g., moong dal, chana, sattu, local vegetables, soy chunks). DO NOT suggest expensive western foods like salmon, quinoa, or avocado natively.
     3. Explain in simple, supportive language.

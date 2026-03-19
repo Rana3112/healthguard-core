@@ -1,7 +1,17 @@
 import React, { useState } from 'react';
 import { ShieldCheck, Plus, X, Loader2, CheckCircle, AlertTriangle, XCircle, Lock, Search, Pill } from 'lucide-react';
 
-const BACKEND_URL = (import.meta as any).env?.VITE_BACKEND_URL || 'https://healthguard-backend-yo9a.onrender.com';
+// OpenRouter API for GPT-OSS-120B
+const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
+
+const getEnvVar = (key: string): string | undefined => {
+    const viteEnv = (import.meta as any)?.env?.[key];
+    if (viteEnv) return viteEnv;
+    if (typeof process !== 'undefined') {
+        return (process as any)?.env?.[key];
+    }
+    return undefined;
+};
 
 interface Interaction {
     drug_a: string;
@@ -23,6 +33,102 @@ const severityConfig = {
     dangerous: { icon: <XCircle className="w-4 h-4" />, label: 'Dangerous', bg: 'bg-red-50 dark:bg-red-900/10', border: 'border-red-200 dark:border-red-800/30', text: 'text-red-600 dark:text-red-400', badge: 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400' },
 };
 
+const DRUG_INTERACTION_PROMPT = `You are a highly knowledgeable pharmacist AI specializing in drug interactions. Analyze the given medicines for potential interactions.
+
+IMPORTANT GUIDELINES:
+1. Check each pair of medicines for interactions
+2. Consider both direct interactions and indirect effects
+3. Rate severity as: "safe" (no significant interaction), "caution" (monitor required), or "dangerous" (avoid combination)
+4. Provide clear, actionable recommendations
+5. Include Indian medicine brand names when relevant
+6. Consider common Indian medications and Ayurvedic interactions if applicable
+
+You MUST respond in this exact JSON format:
+{
+    "summary": "Brief overall assessment of the medicine combination",
+    "interactions": [
+        {
+            "drug_a": "First medicine name",
+            "drug_b": "Second medicine name",
+            "severity": "safe|caution|dangerous",
+            "description": "Detailed explanation of the interaction",
+            "recommendation": "What the patient should do"
+        }
+    ],
+    "general_advice": "Overall advice for the patient taking these medicines"
+}
+
+Analyze ALL possible pairs of medicines provided. Be thorough but concise.`;
+
+async function checkDrugInteractionsWithAI(medicines: string[]): Promise<InteractionResult> {
+    const apiKey = getEnvVar('VITE_OPENROUTER_API_KEY') || getEnvVar('OPENROUTER_API_KEY');
+    
+    if (!apiKey) {
+        throw new Error('OpenRouter API key is missing. Please configure VITE_OPENROUTER_API_KEY.');
+    }
+
+    const userMessage = `Please analyze these medicines for interactions:\n${medicines.map((m, i) => `${i + 1}. ${m}`).join('\n')}`;
+
+    const response = await fetch(OPENROUTER_API_URL, {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'HTTP-Referer': window.location.origin,
+            'X-Title': 'HealthGuard AI Drug Interaction Checker',
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            model: 'openai/gpt-oss-120b',
+            messages: [
+                { role: 'system', content: DRUG_INTERACTION_PROMPT },
+                { role: 'user', content: userMessage }
+            ],
+            temperature: 0.3,
+            max_tokens: 2048,
+        }),
+    });
+
+    if (!response.ok) {
+        const errorData = await response.text();
+        console.error('[Drug Interaction] OpenRouter API error:', response.status, errorData);
+        throw new Error(`API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content || '';
+    
+    console.log('[Drug Interaction] GPT-OSS-120B response:', content);
+
+    // Parse the JSON response
+    try {
+        // Try to extract JSON from markdown code blocks if present
+        const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/);
+        const jsonStr = jsonMatch ? jsonMatch[1].trim() : content.trim();
+        const result = JSON.parse(jsonStr);
+        
+        // Validate and return
+        return {
+            summary: result.summary || 'Analysis complete.',
+            interactions: Array.isArray(result.interactions) ? result.interactions : [],
+            general_advice: result.general_advice || 'Always consult your doctor before combining medications.'
+        };
+    } catch (parseError) {
+        console.error('[Drug Interaction] Failed to parse response:', parseError);
+        // Return a fallback response
+        return {
+            summary: 'I analyzed the medicines but had trouble formatting the response. Here is my analysis:',
+            interactions: [{
+                drug_a: medicines[0] || 'Medicine 1',
+                drug_b: medicines[1] || 'Medicine 2',
+                severity: 'caution',
+                description: content.substring(0, 500),
+                recommendation: 'Please consult your doctor or pharmacist for detailed interaction information.'
+            }],
+            general_advice: 'The AI response could not be properly formatted. Please consult a healthcare professional for accurate drug interaction information.'
+        };
+    }
+}
+
 const DrugInteractionChecker: React.FC = () => {
     const [medicines, setMedicines] = useState<string[]>(['', '']);
     const [loading, setLoading] = useState(false);
@@ -37,14 +143,15 @@ const DrugInteractionChecker: React.FC = () => {
         const valid = medicines.filter(m => m.trim());
         if (valid.length < 2) { setError('Enter at least 2 medicines'); return; }
         setError(''); setLoading(true); setResult(null);
+        
         try {
-            const res = await fetch(`${BACKEND_URL}/check-interactions`, {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ medicines: valid })
-            });
-            if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || 'Failed'); }
-            setResult(await res.json());
-        } catch (err: any) { setError(err.message || 'Unknown error'); }
+            // Use GPT-OSS-120B via OpenRouter for drug interaction analysis
+            const interactionResult = await checkDrugInteractionsWithAI(valid);
+            setResult(interactionResult);
+        } catch (err: any) { 
+            console.error('[Drug Interaction] Error:', err);
+            setError(err.message || 'Failed to check interactions. Please try again.'); 
+        }
         finally { setLoading(false); }
     };
 
@@ -64,7 +171,7 @@ const DrugInteractionChecker: React.FC = () => {
                         <h2 className="text-lg font-extrabold text-slate-800 dark:text-white tracking-tight">Drug Interaction Checker</h2>
                     </div>
                     <p className="text-xs text-slate-400 leading-relaxed">
-                        Check for dangerous interactions between your medicines to ensure your treatment is safe.
+                        Powered by GPT-OSS-120B. Check for dangerous interactions between your medicines.
                     </p>
                 </div>
 
@@ -85,6 +192,11 @@ const DrugInteractionChecker: React.FC = () => {
                                             type="text" value={med} onChange={e => updateMedicine(i, e.target.value)}
                                             placeholder={`Medicine ${i + 1} name...`}
                                             className="w-full px-4 py-3 text-sm bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-2xl focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400 outline-none text-slate-700 dark:text-white placeholder:text-slate-300 dark:placeholder:text-slate-600 transition-all"
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter' && !loading) {
+                                                    checkInteractions();
+                                                }
+                                            }}
                                         />
                                         {medicines.length > 2 && (
                                             <button onClick={() => removeMedicine(i)} className="absolute right-3 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 text-slate-300 hover:text-red-400 transition-all">
@@ -108,7 +220,7 @@ const DrugInteractionChecker: React.FC = () => {
                             className="w-full mt-3 py-3.5 bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700 text-white text-sm font-bold rounded-2xl transition-all shadow-lg shadow-purple-500/20 disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98] flex items-center justify-center gap-2"
                         >
                             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
-                            {loading ? 'Analyzing...' : 'Check Interactions'}
+                            {loading ? 'Analyzing with GPT-OSS-120B...' : 'Check Interactions'}
                         </button>
 
                         {error && <p className="text-xs text-red-500 mt-2 font-medium text-center">⚠️ {error}</p>}
@@ -166,7 +278,7 @@ const DrugInteractionChecker: React.FC = () => {
                         {/* Disclaimer */}
                         <div className="flex items-center justify-center gap-1.5 pt-1">
                             <Lock className="w-3 h-3 text-slate-300 dark:text-slate-600" />
-                            <span className="text-[10px] text-slate-400 dark:text-slate-600 italic">AI-generated. Always consult your doctor.</span>
+                            <span className="text-[10px] text-slate-400 dark:text-slate-600 italic">AI-generated by GPT-OSS-120B. Always consult your doctor.</span>
                         </div>
                     </div>
                 )}

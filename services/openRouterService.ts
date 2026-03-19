@@ -1,6 +1,15 @@
 import { ChatMessage, MessageRole } from "../types";
 
-const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
+const getEnvVar = (key: string): string | undefined => {
+    const viteEnv = (import.meta as any)?.env?.[key];
+    if (viteEnv) return viteEnv;
+    if (typeof process !== 'undefined') {
+        return (process as any)?.env?.[key];
+    }
+    return undefined;
+};
+
+const OPENROUTER_API_KEY = getEnvVar('VITE_OPENROUTER_API_KEY') || getEnvVar('OPENROUTER_API_KEY');
 const SITE_URL = "http://localhost:5175"; // Optional, for OpenRouter rankings
 const SITE_NAME = "HealthGuard AI"; // Optional
 

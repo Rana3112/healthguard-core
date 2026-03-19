@@ -13,6 +13,7 @@ interface SidebarProps {
     activeSessionId: string | null;
     onLoadChat: (sessionId: string) => void;
     onDeleteChat: (sessionId: string) => void;
+    desktopWidth?: number;
 }
 
 function formatTimeAgo(timestamp: number): string {
@@ -52,7 +53,7 @@ function groupSessions(sessions: ChatSession[]): { label: string; items: ChatSes
     return groups;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ onNewChat, isOpen, toggleSidebar, sessions, activeSessionId, onLoadChat, onDeleteChat }) => {
+const Sidebar: React.FC<SidebarProps> = ({ onNewChat, isOpen, toggleSidebar, sessions, activeSessionId, onLoadChat, onDeleteChat, desktopWidth = 288 }) => {
     const [searchQuery, setSearchQuery] = useState('');
     const [hoveredId, setHoveredId] = useState<string | null>(null);
     const { user } = useAuth();
@@ -64,7 +65,7 @@ const Sidebar: React.FC<SidebarProps> = ({ onNewChat, isOpen, toggleSidebar, ses
     };
 
     const filtered = searchQuery.trim()
-        ? sessions.filter(s => s.title.toLowerCase().includes(searchQuery.toLowerCase()))
+        ? sessions.filter(s => String(s.title || '').toLowerCase().includes(searchQuery.toLowerCase()))
         : sessions;
 
     const groups = groupSessions(filtered);
@@ -81,9 +82,10 @@ const Sidebar: React.FC<SidebarProps> = ({ onNewChat, isOpen, toggleSidebar, ses
 
             {/* Sidebar Container */}
             <aside
-                className={`fixed top-0 left-0 h-full w-72 flex-shrink-0 flex flex-col border-r border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl z-50 transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:block shadow-2xl lg:shadow-none
+                className={`fixed top-0 left-0 h-full w-72 lg:w-[var(--sidebar-width)] flex-shrink-0 flex flex-col border-r border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl z-50 transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:block shadow-2xl lg:shadow-none
           ${isOpen ? 'translate-x-0' : '-translate-x-full'}
         `}
+                style={{ ['--sidebar-width' as any]: `${desktopWidth}px` }}
             >
                 <div className="flex flex-col h-full">
 

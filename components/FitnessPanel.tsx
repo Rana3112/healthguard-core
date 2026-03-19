@@ -5,6 +5,9 @@ import autoTable from 'jspdf-autotable';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { sendMessageToAgent } from '../services/geminiService';
+import { generateCardFromGraphSignal } from '../services/followUpGenerator';
+import { ClarificationCard, ClarificationOption } from '../types';
+import { TextInputFlashcard } from './TextChatInterface';
 import Model from 'react-body-highlighter';
 
 const BACKEND_URL = (import.meta as any).env?.VITE_BACKEND_URL || 'https://healthguard-backend-yo9a.onrender.com';
@@ -139,7 +142,32 @@ interface ChatMessage {
     content: string;
     type: 'text' | 'plan';
     planData?: WorkoutPlan;
+    suggestedQuestionCards?: ClarificationCard[];
 }
+
+const OptionFlashcard: React.FC<{
+    card: ClarificationCard;
+    isLoading: boolean;
+    onSelect: (option: ClarificationOption) => void;
+}> = ({ card, isLoading, onSelect }) => {
+    return (
+        <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-900/40 p-2.5">
+            <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 mb-2">{card.question}</p>
+            <div className="flex flex-wrap gap-2">
+                {(card.options || []).map((option, optionIndex) => (
+                    <button
+                        key={`${option.label}-${optionIndex}`}
+                        onClick={() => onSelect(option)}
+                        disabled={isLoading}
+                        className="text-[11px] rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-1.5 hover:bg-teal-50 dark:hover:bg-teal-900/20 transition-colors disabled:opacity-50"
+                    >
+                        {option.label}
+                    </button>
+                ))}
+            </div>
+        </div>
+    );
+};
 
 const FitnessPanel: React.FC = () => {
     // --- Workout Plan State (Local) ---
@@ -316,12 +344,11 @@ const FitnessPanel: React.FC = () => {
         }
     };
 
-    const handleSendMessage = async () => {
-        if (!inputMessage.trim()) return;
+    const sendCoachMessage = async (messageText: string) => {
+        if (!messageText.trim()) return;
 
-        const newUserMsg: ChatMessage = { role: 'user', content: inputMessage, type: 'text' };
+        const newUserMsg: ChatMessage = { role: 'user', content: messageText, type: 'text' };
         setChatMessages(prev => [...prev, newUserMsg]);
-        setInputMessage('');
         setIsTyping(true);
 
         try {
@@ -336,10 +363,19 @@ const FitnessPanel: React.FC = () => {
                 newUserMsg.content + "\n\n(CRITICAL INSTRUCTION: If recommending a diet or food, you MUST prioritize affordable, common Indian middle-class cuisine. Suggest everyday ingredients (like moong dal, paneer, sattu, eggs, soy chunks, local seasonal veggies) that are cheap and easily available to the average Indian family. Avoid expensive western diets like salmon, avocado, or quinoa unless specifically asked.\n\nAlso, you MUST use rich Markdown formatting. Use ### for headings, **bold** for emphasis, `- ` for bullet point lists, and Markdown tables with `|` for any tabular data.)"
             );
 
+            const graphCard = result.graphOutput
+                ? generateCardFromGraphSignal(result.graphOutput)
+                : null;
+
             const aiMsg: ChatMessage = {
                 role: 'assistant',
                 content: result.text || "I'm having trouble responding.",
-                type: 'text'
+                type: 'text',
+                suggestedQuestionCards: Array.isArray(result.suggestedQuestionCards)
+                    ? result.suggestedQuestionCards
+                    : graphCard
+                        ? [graphCard]
+                    : undefined
             };
 
             setChatMessages(prev => [...prev, aiMsg]);
@@ -354,10 +390,27 @@ const FitnessPanel: React.FC = () => {
         }
     };
 
+    const handleSendMessage = async () => {
+        if (!inputMessage.trim()) return;
+        const outgoing = inputMessage;
+        setInputMessage('');
+        await sendCoachMessage(outgoing);
+    };
+
+    const handleCoachFlashcardOptionClick = async (card: ClarificationCard, option: ClarificationOption) => {
+        const outboundText = option.userStatement?.trim() || `For "${card.question}", my answer is: ${option.label}.`;
+        await sendCoachMessage(outboundText);
+    };
+
     // Scroll chat to bottom
     useEffect(() => {
         chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [chatMessages, isTyping]);
+
+    const latestAssistantMessageIndex = [...chatMessages]
+        .map((message, index) => ({ message, index }))
+        .reverse()
+        .find(({ message }) => message.role === 'assistant')?.index;
 
     const downloadPDF = (plan: WorkoutPlan) => {
         const doc = new jsPDF();
@@ -939,6 +992,43 @@ const FitnessPanel: React.FC = () => {
                                                         >
                                                             {msg.content}
                                                         </ReactMarkdown>
+
+                                                        {msg.role === 'assistant' && i === latestAssistantMessageIndex && msg.suggestedQuestionCards && msg.suggestedQuestionCards.length > 0 && (
+                                                            <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-700/60">
+                                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Related Questions</p>
+                                                                <div className="space-y-2.5">
+                                                                    {msg.suggestedQuestionCards.slice(0, 6).map((card, cardIndex) => {
+                                                                        if (card.inputType === 'text') {
+                                                                            return (
+                                                                                <div key={`${card.question}-${cardIndex}`}>
+                                                                                    <TextInputFlashcard
+                                                                                        card={card}
+                                                                                        isLoading={isTyping}
+                                                                                        onSend={(text) => {
+                                                                                            void handleCoachFlashcardOptionClick(card, {
+                                                                                                label: text,
+                                                                                                userStatement: text,
+                                                                                            });
+                                                                                        }}
+                                                                                    />
+                                                                                </div>
+                                                                            );
+                                                                        }
+
+                                                                        return (
+                                                                            <OptionFlashcard
+                                                                                key={`${card.question}-${cardIndex}`}
+                                                                                card={card}
+                                                                                isLoading={isTyping}
+                                                                                onSelect={(option) => {
+                                                                                    void handleCoachFlashcardOptionClick(card, option);
+                                                                                }}
+                                                                            />
+                                                                        );
+                                                                    })}
+                                                                </div>
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 </div>
                                             ))}

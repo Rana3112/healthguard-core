@@ -1,11 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FadeInSection } from '../../components/FadeInSection';
+import { HealthGuardIcon } from '../components/HealthGuardIcon';
+import { useAuth } from '../context/AuthContext';
 
 const LandingPage: React.FC = () => {
     const navigate = useNavigate();
+    const { user, loading } = useAuth();
     const [scrolled, setScrolled] = useState(false);
     const [darkMode, setDarkMode] = useState(false);
+
+    // Redirect to dashboard if already logged in
+    useEffect(() => {
+        if (!loading && user) {
+            navigate('/app');
+        }
+    }, [user, loading, navigate]);
 
     // Handle dark mode toggle
     useEffect(() => {
@@ -108,15 +118,21 @@ const LandingPage: React.FC = () => {
                         </div>
 
                         {/* Hero Visual */}
-                        <div className="relative animate-slide-up">
+                        <div className="relative animate-slide-up flex justify-center lg:justify-end pr-4 lg:pr-12">
+                            {/* Decorative Background Elements */}
                             <div className="absolute -top-10 -right-10 w-64 h-64 bg-teal-500/10 blur-[100px] rounded-full"></div>
                             <div className="absolute -bottom-10 -left-10 w-64 h-64 bg-blue-500/10 blur-[100px] rounded-full"></div>
 
-                            <div className="relative bg-white dark:bg-[#1e293b] rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden transform lg:rotate-2 hover:rotate-0 transition-transform duration-500">
-                                <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
+                            {/* Floating Animated Medical SVG icon behind card */}
+                            <div className="absolute -top-20 -left-20 lg:-left-12 lg:-top-16 z-0 opacity-80 pointer-events-none drop-shadow-2xl">
+                                <HealthGuardIcon size={3.5} animationDuration="4s" />
+                            </div>
+
+                            <div className="relative z-10 bg-white dark:bg-[#1e293b] rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden transform lg:rotate-2 hover:rotate-0 transition-transform duration-500 max-w-md w-full">
+                                <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-white/90 backdrop-blur-sm z-20 relative">
                                     <div className="flex items-center gap-3">
                                         <div className="w-10 h-10 rounded-full bg-teal-500/20 flex items-center justify-center text-teal-500">
-                                            <span className="material-symbols-outlined">smart_toy</span>
+                                            <span className="material-symbols-outlined">health_and_safety</span>
                                         </div>
                                         <div>
                                             <div className="text-sm font-bold">HealthGuard Pro</div>
@@ -373,7 +389,25 @@ const LandingPage: React.FC = () => {
                                     </li>
                                 ))}
                             </ul>
-                            <button onClick={() => navigate('/signup')} className="w-full py-3 px-6 rounded-xl bg-teal-500 text-white font-semibold hover:bg-teal-600 transition-all">
+                            <button
+                                onClick={async () => {
+                                    if (!user) {
+                                        navigate('/signup');
+                                    } else {
+                                        try {
+                                            const BACKEND_URL = (import.meta as any).env?.VITE_BACKEND_URL || 'http://localhost:5001';
+                                            const response = await fetch(`${BACKEND_URL}/api/create-checkout-session`, {
+                                                method: 'POST',
+                                                headers: { 'Content-Type': 'application/json' },
+                                                body: JSON.stringify({ userId: user.uid, email: user.email })
+                                            });
+                                            const data = await response.json();
+                                            if (data.url) window.location.href = data.url;
+                                        } catch (e) { console.error(e); }
+                                    }
+                                }}
+                                className="w-full py-3 px-6 rounded-xl bg-teal-500 text-white font-semibold hover:bg-teal-600 transition-all font-display"
+                            >
                                 Get Pro Access
                             </button>
                         </div>

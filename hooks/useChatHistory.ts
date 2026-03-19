@@ -20,11 +20,60 @@ function generateTitle(messages: ChatMessage[]): string {
     return text.substring(0, 40) + '…';
 }
 
+function normalizeMessage(raw: any): ChatMessage | null {
+    if (!raw || typeof raw !== 'object') return null;
+    const role = raw.role;
+    if (role !== MessageRole.USER && role !== MessageRole.MODEL && role !== MessageRole.SYSTEM) return null;
+    return {
+        id: String(raw.id || Date.now()),
+        role,
+        text: typeof raw.text === 'string' ? raw.text : '',
+        image: typeof raw.image === 'string' ? raw.image : undefined,
+        audio: typeof raw.audio === 'string' ? raw.audio : undefined,
+        timestamp: typeof raw.timestamp === 'number' ? raw.timestamp : undefined,
+        suggestedActions: Array.isArray(raw.suggestedActions) ? raw.suggestedActions.filter((s: any) => typeof s === 'string') : undefined,
+        suggestedQuestionCards: Array.isArray(raw.suggestedQuestionCards) ? raw.suggestedQuestionCards : undefined,
+        priceComparison: raw.priceComparison,
+        showPharmacyMap: typeof raw.showPharmacyMap === 'boolean' ? raw.showPharmacyMap : undefined,
+        thinkingText: typeof raw.thinkingText === 'string' ? raw.thinkingText : undefined,
+        thinkingDuration: typeof raw.thinkingDuration === 'number' ? raw.thinkingDuration : undefined,
+        imageGen: raw.imageGen,
+        groundingSources: Array.isArray(raw.groundingSources) ? raw.groundingSources : undefined,
+    };
+}
+
+function normalizeSession(raw: any): ChatSession | null {
+    if (!raw || typeof raw !== 'object') return null;
+    const messages = Array.isArray(raw.messages)
+        ? raw.messages.map(normalizeMessage).filter(Boolean) as ChatMessage[]
+        : [];
+
+    const updatedAt = Number(raw.updatedAt);
+    const createdAt = Number(raw.createdAt || updatedAt || Date.now());
+
+    return {
+        id: String(raw.id || `chat_${createdAt}`),
+        title: typeof raw.title === 'string' && raw.title.trim().length > 0
+            ? raw.title
+            : generateTitle(messages.length ? messages : [WELCOME_MESSAGE]),
+        messages: messages.length ? messages : [WELCOME_MESSAGE],
+        createdAt: Number.isFinite(createdAt) ? createdAt : Date.now(),
+        updatedAt: Number.isFinite(updatedAt) ? updatedAt : Date.now(),
+    };
+}
+
+function normalizeSessions(raw: any): ChatSession[] {
+    if (!Array.isArray(raw)) return [];
+    return raw
+        .map(normalizeSession)
+        .filter(Boolean) as ChatSession[];
+}
+
 function loadSessions(storageKey: string): ChatSession[] {
     try {
         const raw = localStorage.getItem(storageKey);
         if (!raw) return [];
-        return JSON.parse(raw) as ChatSession[];
+        return normalizeSessions(JSON.parse(raw));
     } catch {
         return [];
     }
@@ -33,10 +82,11 @@ function loadSessions(storageKey: string): ChatSession[] {
 function saveSessions(storageKey: string, sessions: ChatSession[]): void {
     if (!storageKey) return;
     try {
+        const safeSessions = normalizeSessions(sessions);
         // Only save text + metadata, strip large base64 images/audio to save space
-        const lightweight = sessions.map(s => ({
+        const lightweight = safeSessions.map(s => ({
             ...s,
-            messages: s.messages.map(m => ({
+            messages: (Array.isArray(s.messages) ? s.messages : []).map(m => ({
                 ...m,
                 image: m.image ? '[image]' : undefined,
                 audio: undefined
@@ -82,9 +132,10 @@ export function useChatHistory() {
                 const res = await fetch(`${API_BASE}/${user.uid}`);
                 if (res.ok) {
                     const data = await res.json();
-                    if (Array.isArray(data)) {
-                        setSessions(data);
-                        localStorage.setItem(storageKey, JSON.stringify(data.slice(0, MAX_SESSIONS)));
+                    const normalized = normalizeSessions(data);
+                    if (normalized.length > 0) {
+                        setSessions(normalized);
+                        localStorage.setItem(storageKey, JSON.stringify(normalized.slice(0, MAX_SESSIONS)));
                     }
                 }
             } catch (e) {
@@ -129,7 +180,7 @@ export function useChatHistory() {
             if (user) {
                 const lightweightSession = {
                     ...currentSession,
-                    messages: currentSession.messages.map(m => ({
+                    messages: (Array.isArray(currentSession.messages) ? currentSession.messages : []).map(m => ({
                         ...m,
                         image: m.image ? '[image]' : undefined,
                         audio: undefined

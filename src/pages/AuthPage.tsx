@@ -5,10 +5,12 @@ import {
     Check, Activity, ShieldCheck, Heart, AlertCircle
 } from 'lucide-react';
 import { loginUser, signUpUser, loginWithGoogle, resetPassword } from '../services/firebaseAuth';
+import { useAuth } from '../context/AuthContext';
 
 const AuthPage: React.FC = () => {
     const navigate = useNavigate();
     const location = useLocation();
+    const { user, loading: authLoading } = useAuth();
     const [isLogin, setIsLogin] = useState(true);
     const [isForgotPassword, setIsForgotPassword] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
@@ -26,12 +28,18 @@ const AuthPage: React.FC = () => {
 
     // Toggle based on route or state
     useEffect(() => {
+        // If user is already authenticated, redirect them
+        if (!authLoading && user) {
+            navigate('/app');
+            return;
+        }
+
         if (location.pathname === '/signup') {
             setIsLogin(false);
         } else if (location.pathname === '/login') {
             setIsLogin(true);
         }
-    }, [location.pathname]);
+    }, [location.pathname, user, authLoading, navigate]);
 
     const handleToggle = (loginState: boolean) => {
         setIsLogin(loginState);
@@ -119,10 +127,15 @@ const AuthPage: React.FC = () => {
 
                 {/* Branding */}
                 <div className="relative z-10 flex items-center gap-3">
-                    <div className="w-10 h-10 bg-white/20 backdrop-blur-md rounded-xl flex items-center justify-center shadow-lg border border-white/10">
-                        <ShieldCheck className="w-6 h-6 text-white" />
+                    <div className="relative flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-white/20 to-white/5 border border-white/10 shadow-lg">
+                        <Activity className="w-5 h-5 text-teal-300" />
                     </div>
-                    <span className="text-2xl font-extrabold tracking-tight">HealthGuard <span className="text-teal-200 italic">AI</span></span>
+                    <div>
+                        <span className="text-2xl font-extrabold tracking-tight text-white flex items-center">
+                            HealthGuard
+                            <span className="text-transparent bg-clip-text bg-gradient-to-r from-teal-300 to-emerald-200 italic ml-1 font-extrabold">AI</span>
+                        </span>
+                    </div>
                 </div>
 
                 {/* Hero Content */}
@@ -178,10 +191,13 @@ const AuthPage: React.FC = () => {
 
                     {/* Mobile Header */}
                     <div className="lg:hidden flex items-center gap-2 mb-8 justify-center">
-                        <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center text-white shadow-lg">
-                            <ShieldCheck className="w-6 h-6" />
+                        <div className="relative flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-teal-500 to-teal-400 border border-teal-300 shadow-lg">
+                            <Activity className="w-5 h-5 text-white" />
                         </div>
-                        <span className="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white">HealthGuard <span className="text-primary italic">AI</span></span>
+                        <span className="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white flex items-center">
+                            HealthGuard
+                            <span className="text-transparent bg-clip-text bg-gradient-to-r from-teal-500 to-emerald-400 dark:from-teal-300 dark:to-emerald-200 italic ml-1 font-extrabold">AI</span>
+                        </span>
                     </div>
 
                     <div className="mb-10 text-center lg:text-left">

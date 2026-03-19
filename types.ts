@@ -1,7 +1,35 @@
+import type { BaseMessage } from '@langchain/core/messages';
+
 export enum MessageRole {
   USER = 'user',
   MODEL = 'model',
   SYSTEM = 'system'
+}
+
+export type GraphPhase =
+  | 'intake'
+  | 'gathering'
+  | 'abstraction'
+  | 'searching'
+  | 'diagnosis'
+  | 'complete';
+
+export type CardInputType = 'options' | 'text' | 'final_summary' | 'red_flag';
+
+export interface SocratesObject {
+  site: string | null;
+  onset: string | null;
+  character: string | null;
+  radiation: string | null;
+  associations: string | null;
+  timing: string | null;
+  exacerbating: string | null;
+  relieving: string | null;
+  severity: string | null;
+  medications: string | null;
+  allergies: string | null;
+  medical_history: string | null;
+  age_sex: string | null;
 }
 
 export interface MedicinePriceResult {
@@ -17,6 +45,40 @@ export interface MedicinePriceResult {
   delivery: string;
 }
 
+export interface ClarificationOption {
+  label: string;
+  userStatement: string;
+  intent?: 'vision' | 'agent' | 'final_analysis';
+}
+
+export interface ClarificationCard {
+  question: string;
+  inputType?: CardInputType;
+  textPlaceholder?: string;
+  placeholder?: string;
+  options: ClarificationOption[];
+  socrates_field?: keyof SocratesObject;
+  reasoning?: string;
+}
+
+export interface PatientState {
+  messages: BaseMessage[];
+  chief_complaint: string;
+  socrates: SocratesObject;
+  questions_asked: string[];
+  answers_given: Record<string, string>;
+  phase: GraphPhase;
+  thread_id: string;
+  next_card: ClarificationCard | null;
+  ready_for_analysis: boolean;
+  clinical_abstraction: string | null;
+  search_results: string | null;
+  final_diagnosis: string | null;
+  // Browser-compatible interrupt pattern fields
+  awaiting_input?: boolean;
+  pending_answer?: string | null;
+}
+
 export interface ChatMessage {
   id: string;
   role: MessageRole;
@@ -29,13 +91,23 @@ export interface ChatMessage {
     uri: string;
   }>;
   suggestedActions?: string[]; // Options for the user to click
+  suggestedQuestionCards?: ClarificationCard[];
   priceComparison?: {
     query: string;
     results: MedicinePriceResult[];
     cheapest: MedicinePriceResult | null;
   };
   showPharmacyMap?: boolean;
+  thinkingText?: string; // Kimi K2.5 reasoning/thinking content (shown in collapsible section)
+  thinkingDuration?: number; // Seconds spent thinking
   timestamp?: number;
+  imageGen?: {
+    isOpen: boolean;
+    prompt: string;
+    status: 'idle' | 'loading' | 'success' | 'error';
+    imageUrl?: string;
+    error?: string;
+  };
 }
 
 

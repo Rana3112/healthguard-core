@@ -1,4 +1,4 @@
-import React, { useReducer, useState, useCallback, useEffect } from 'react';
+import React, { useReducer, useState, useCallback, useEffect, useRef } from 'react';
 import { AgentState, AgentAction } from '../../types';
 import LiveVoiceInterface from '../../components/LiveVoiceInterface';
 import TextChatInterface from '../../components/TextChatInterface';
@@ -11,10 +11,10 @@ import SettingsPanel from '../../components/SettingsPanel';
 import NotificationPanel from '../../components/NotificationPanel';
 import { applyTheme, getStoredTheme } from '../../components/SettingsPanel';
 import { useChatHistory } from '../../hooks/useChatHistory';
-import { Menu, Zap, Sparkles, BrainCircuit, Eye, Settings, Bell, Bot, LogOut, Dumbbell, Heart, Pill } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Menu, Zap, Sparkles, BrainCircuit, Eye, Settings, Bell, Bot, LogOut, Dumbbell, Heart, Pill, Lock, ShieldCheck } from 'lucide-react';
 import { ModelMode } from '../../services/geminiService';
 import { useAuth } from '../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
 
 const initialState: AgentState = {
     orders: [],
@@ -28,6 +28,24 @@ const initialState: AgentState = {
         logs: [],
         progress: 0
     }
+};
+
+const MIN_LEFT_PANEL_WIDTH = 240;
+const MAX_LEFT_PANEL_WIDTH = 420;
+const MIN_RIGHT_PANEL_WIDTH = 320;
+const MAX_RIGHT_PANEL_WIDTH = 560;
+const MIN_CENTER_PANEL_WIDTH = 520;
+const RESIZER_GUTTER_WIDTH = 8;
+
+const clamp = (value: number, min: number, max: number): number =>
+    Math.min(Math.max(value, min), max);
+
+const getStoredPanelWidth = (key: string, fallback: number): number => {
+    if (typeof window === 'undefined') return fallback;
+    const raw = window.localStorage.getItem(key);
+    if (!raw) return fallback;
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) ? parsed : fallback;
 };
 
 const agentReducer = (state: AgentState, action: AgentAction): AgentState => {
@@ -85,7 +103,12 @@ const Dashboard: React.FC = () => {
     const [showSettings, setShowSettings] = useState(false);
     const [showNotifications, setShowNotifications] = useState(false);
     const [pendingQuickTool, setPendingQuickTool] = useState<string | null>(null);
-    const { user } = useAuth();
+    const [leftPanelWidth, setLeftPanelWidth] = useState<number>(() => getStoredPanelWidth('hg_left_panel_width', 288));
+    const [rightPanelWidth, setRightPanelWidth] = useState<number>(() => getStoredPanelWidth('hg_right_panel_width', 420));
+    const [activeResizer, setActiveResizer] = useState<'left' | 'right' | null>(null);
+
+    const rootLayoutRef = useRef<HTMLDivElement>(null);
+    const { user, isPro } = useAuth();
     const navigate = useNavigate();
 
     useEffect(() => { applyTheme(getStoredTheme()); }, []);
@@ -105,8 +128,65 @@ const Dashboard: React.FC = () => {
         saveCurrentChat(msgs);
     }, [saveCurrentChat]);
 
+    const startResize = useCallback((e: React.MouseEvent, side: 'left' | 'right') => {
+        if (window.innerWidth < 1024) return;
+        e.preventDefault();
+        setActiveResizer(side);
+    }, []);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        window.localStorage.setItem('hg_left_panel_width', String(Math.round(leftPanelWidth)));
+    }, [leftPanelWidth]);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        window.localStorage.setItem('hg_right_panel_width', String(Math.round(rightPanelWidth)));
+    }, [rightPanelWidth]);
+
+    useEffect(() => {
+        if (!activeResizer) return;
+
+        const handleMouseMove = (e: MouseEvent) => {
+            if (window.innerWidth < 1024) return;
+
+            const rect = rootLayoutRef.current?.getBoundingClientRect();
+            if (!rect) return;
+
+            const containerWidth = rect.width;
+
+            if (activeResizer === 'left') {
+                const maxLeftByCenter = containerWidth - rightPanelWidth - MIN_CENTER_PANEL_WIDTH - (RESIZER_GUTTER_WIDTH * 2);
+                const effectiveMaxLeft = Math.min(MAX_LEFT_PANEL_WIDTH, maxLeftByCenter);
+                const nextLeft = clamp(e.clientX - rect.left, MIN_LEFT_PANEL_WIDTH, effectiveMaxLeft);
+                setLeftPanelWidth(nextLeft);
+                return;
+            }
+
+            const maxRightByCenter = containerWidth - leftPanelWidth - MIN_CENTER_PANEL_WIDTH - (RESIZER_GUTTER_WIDTH * 2);
+            const effectiveMaxRight = Math.min(MAX_RIGHT_PANEL_WIDTH, maxRightByCenter);
+            const nextRight = clamp(rect.right - e.clientX, MIN_RIGHT_PANEL_WIDTH, effectiveMaxRight);
+            setRightPanelWidth(nextRight);
+        };
+
+        const stopResize = () => setActiveResizer(null);
+
+        document.body.style.cursor = 'col-resize';
+        document.body.style.userSelect = 'none';
+
+        window.addEventListener('mousemove', handleMouseMove);
+        window.addEventListener('mouseup', stopResize);
+
+        return () => {
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+            window.removeEventListener('mousemove', handleMouseMove);
+            window.removeEventListener('mouseup', stopResize);
+        };
+    }, [activeResizer, leftPanelWidth, rightPanelWidth]);
+
     return (
-        <div className="flex h-screen bg-slate-50 dark:bg-slate-900 overflow-hidden font-sans text-slate-900 dark:text-slate-100 selection:bg-teal-100 selection:text-teal-900">
+        <div ref={rootLayoutRef} className="flex h-screen bg-slate-50 dark:bg-slate-900 overflow-hidden font-sans text-slate-900 dark:text-slate-100 selection:bg-teal-100 selection:text-teal-900">
 
             {/* Left Sidebar (Navigation) */}
             <Sidebar
@@ -117,7 +197,17 @@ const Dashboard: React.FC = () => {
                 activeSessionId={activeSessionId}
                 onLoadChat={(id) => { loadChat(id); setSidebarOpen(false); }}
                 onDeleteChat={deleteChat}
+                desktopWidth={leftPanelWidth}
             />
+
+            {/* Desktop Resizer: Left Sidebar | Chat */}
+            <div
+                className="hidden lg:flex w-2 items-stretch justify-center cursor-col-resize group"
+                onMouseDown={(e) => startResize(e, 'left')}
+                title="Drag to resize left panel"
+            >
+                <div className={`w-[2px] rounded-full transition-colors ${activeResizer === 'left' ? 'bg-teal-500' : 'bg-slate-200 group-hover:bg-teal-300 dark:bg-slate-700 dark:group-hover:bg-teal-500/60'}`} />
+            </div>
 
             {/* Center: Main Content (Header + Chat) */}
             <div className="flex-1 flex flex-col relative overflow-hidden bg-white dark:bg-slate-900">
@@ -204,12 +294,21 @@ const Dashboard: React.FC = () => {
                 </div>
             </div>
 
+            {/* Desktop Resizer: Chat | Right Panel */}
+            <div
+                className="hidden lg:flex w-2 items-stretch justify-center cursor-col-resize group"
+                onMouseDown={(e) => startResize(e, 'right')}
+                title="Drag to resize right panel"
+            >
+                <div className={`w-[2px] rounded-full transition-colors ${activeResizer === 'right' ? 'bg-teal-500' : 'bg-slate-200 group-hover:bg-teal-300 dark:bg-slate-700 dark:group-hover:bg-teal-500/60'}`} />
+            </div>
+
             {/* Right Sidebar: Fitness Panel / Health Dashboard */}
             <aside className={`
-                fixed inset-y-0 right-0 w-[420px] bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 z-30 transform transition-transform duration-300
+                fixed inset-y-0 right-0 w-[420px] lg:w-[var(--right-panel-width)] bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 z-30 transform transition-transform duration-300
                 lg:relative lg:transform-none lg:block
                 ${activeRightSidebar ? 'translate-x-0' : 'translate-x-full lg:translate-x-0'}
-            `}>
+            `} style={{ ['--right-panel-width' as any]: `${rightPanelWidth}px` }}>
                 {/* Panel Tabs */}
                 <div className="p-2.5 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 shrink-0">
                     <div className="flex bg-slate-100 dark:bg-slate-800/60 rounded-full p-1">
@@ -240,7 +339,36 @@ const Dashboard: React.FC = () => {
                     </div>
                 </div>
                 {/* Panel Content */}
-                <div className="flex-1 overflow-hidden" style={{ height: 'calc(100% - 52px)' }}>
+                <div className="flex-1 overflow-hidden relative" style={{ height: 'calc(100% - 52px)' }}>
+                    {rightPanel === 'fitness' && !isPro ? (
+                        <div className="absolute inset-0 bg-slate-50/90 dark:bg-slate-900/90 backdrop-blur-sm z-10 flex flex-col items-center justify-center p-8 text-center">
+                            <div className="w-16 h-16 bg-violet-100 dark:bg-violet-900/30 rounded-3xl flex items-center justify-center mb-6 shadow-xl shadow-violet-500/10">
+                                <Lock className="w-8 h-8 text-violet-600 dark:text-violet-400" />
+                            </div>
+                            <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-3">Premium Fitness Suite</h3>
+                            <p className="text-slate-500 dark:text-slate-400 text-sm mb-8 leading-relaxed max-w-xs">
+                                Get access to the **Personalized AI Fitness Coach**, custom workout plans, and exercise tracking.
+                            </p>
+                            <button
+                                onClick={async () => {
+                                    try {
+                                        const BACKEND_URL = (import.meta as any).env?.VITE_BACKEND_URL || 'http://localhost:5001';
+                                        const response = await fetch(`${BACKEND_URL}/api/create-checkout-session`, {
+                                            method: 'POST',
+                                            headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify({ userId: user?.uid, email: user?.email })
+                                        });
+                                        const data = await response.json();
+                                        if (data.url) window.location.href = data.url;
+                                    } catch (e) { console.error(e); }
+                                }}
+                                className="w-full py-3.5 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 text-white font-bold rounded-2xl shadow-lg shadow-purple-500/20 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+                            >
+                                <ShieldCheck className="w-5 h-5" /> Upgrade to Pro
+                            </button>
+                        </div>
+                    ) : null}
+
                     {rightPanel === 'fitness' ? <FitnessPanel /> : rightPanel === 'health' ? <HealthDashboard /> : <DrugInteractionChecker />}
                 </div>
             </aside>

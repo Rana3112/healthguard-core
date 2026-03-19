@@ -26,8 +26,14 @@ const LiveVoiceInterface: React.FC<LiveVoiceInterfaceProps> = ({ onAgentAction }
   // Session
   const sessionRef = useRef<any>(null);
 
+  const getGeminiApiKey = () =>
+    (import.meta as any)?.env?.VITE_GEMINI_API_KEY ||
+    (import.meta as any)?.env?.API_KEY ||
+    (typeof process !== 'undefined' ? (process as any)?.env?.API_KEY : undefined);
+
   const connectToLiveAPI = async () => {
-    if (!process.env.API_KEY) {
+    const apiKey = getGeminiApiKey();
+    if (!apiKey) {
       setError("API Key missing");
       return;
     }
@@ -36,7 +42,7 @@ const LiveVoiceInterface: React.FC<LiveVoiceInterfaceProps> = ({ onAgentAction }
     setError(null);
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const ai = new GoogleGenAI({ apiKey });
 
       // Setup Audio Contexts
       const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;

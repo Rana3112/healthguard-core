@@ -517,89 +517,97 @@ const TextChatInterface: React.FC<TextChatInterfaceProps> = ({ dispatch, message
         text.trim().length > 0;
 
       if (shouldUseClinicalGraph) {
-        const shouldStartNewClinicalThread =
-          isClinicalCaseComplete &&
-          !options?.clinicalResume;
+        try {
+          const shouldStartNewClinicalThread =
+            isClinicalCaseComplete &&
+            !options?.clinicalResume;
 
-        if (shouldStartNewClinicalThread && clinicalThreadId) {
-          clearSession(clinicalThreadId);
-        }
+          if (shouldStartNewClinicalThread && clinicalThreadId) {
+            clearSession(clinicalThreadId);
+          }
 
-        const threadId = shouldStartNewClinicalThread
-          ? crypto.randomUUID()
-          : (clinicalThreadId || crypto.randomUUID());
-        if (!clinicalThreadId) setClinicalThreadId(threadId);
-        if (shouldStartNewClinicalThread) {
-          setClinicalThreadId(threadId);
-          setGraphPhaseLabel('Collecting your symptoms...');
-          setIsClinicalCaseComplete(false);
-        }
+          const threadId = shouldStartNewClinicalThread
+            ? crypto.randomUUID()
+            : (clinicalThreadId || crypto.randomUUID());
+          if (!clinicalThreadId) setClinicalThreadId(threadId);
+          if (shouldStartNewClinicalThread) {
+            setClinicalThreadId(threadId);
+            setGraphPhaseLabel('Collecting your symptoms...');
+            setIsClinicalCaseComplete(false);
+          }
 
-        // Pass the current mode and image to the clinical graph
-        // Extract base64 from the image object and strip the data URL prefix
-        const imageBase64 = imageToSend?.base64 
-          ? imageToSend.base64.replace(/^data:image\/\w+;base64,/, '')
-          : undefined;
-        
-        const result = await runClinicalGraphTurn({
-          threadId,
-          userInput: options?.clinicalResume ? undefined : text,
-          resumeAnswer: options?.clinicalResume ? text : undefined,
-          mode: modelMode, // Pass current mode (fast, standard, thinking, max_deep_think, vision, agent)
-          image: imageBase64, // Pass base64 image for vision mode
-        });
+          // Pass the current mode and image to the clinical graph
+          // Extract base64 from the image object and strip the data URL prefix
+          const imageBase64 = imageToSend?.base64
+            ? imageToSend.base64.replace(/^data:image\/\w+;base64,/, '')
+            : undefined;
 
-        if (result.state?.phase) {
-          setGraphPhaseLabel(phaseLabels[result.state.phase] || 'Analyzing...');
-        }
+          const result = await runClinicalGraphTurn({
+            threadId,
+            userInput: options?.clinicalResume ? undefined : text,
+            resumeAnswer: options?.clinicalResume ? text : undefined,
+            mode: modelMode, // Pass current mode (fast, standard, thinking, max_deep_think, vision, agent)
+            image: imageBase64, // Pass base64 image for vision mode
+          });
 
-        const graphCard = generateCardFromGraphSignal({
-          next_card: result.state.next_card,
-          phase: result.state.phase,
-        });
+          if (result.state?.phase) {
+            setGraphPhaseLabel(phaseLabels[result.state.phase] || 'Analyzing...');
+          }
 
-        if (result.interruptCard || graphCard) {
-          const cardToShow = result.interruptCard || graphCard;
-          setMessages(prev => ([
-            ...prev,
-            {
-              id: (Date.now() + 1).toString(),
-              role: MessageRole.MODEL,
-              text: 'Before I provide the final analysis, please answer this clinical follow-up question.',
-              timestamp: Date.now(),
-              suggestedQuestionCards: cardToShow ? [cardToShow] : []
-            }
-          ]));
-          setAwaitingClinicalResume(true);
-          setIsClinicalCaseComplete(false);
-          setGraphPhaseLabel('');
-          setIsLoading(false);
-          return;
-        }
+          const graphCard = generateCardFromGraphSignal({
+            next_card: result.state.next_card,
+            phase: result.state.phase,
+          });
 
-        if (result.finalDiagnosis) {
-          const suggestedActions = await resolveSuggestedActions(
-            text,
-            result.finalDiagnosis,
-            []
-          );
+          if (result.interruptCard || graphCard) {
+            const cardToShow = result.interruptCard || graphCard;
+            setMessages(prev => ([
+              ...prev,
+              {
+                id: (Date.now() + 1).toString(),
+                role: MessageRole.MODEL,
+                text: 'Before I provide the final analysis, please answer this clinical follow-up question.',
+                timestamp: Date.now(),
+                suggestedQuestionCards: cardToShow ? [cardToShow] : []
+              }
+            ]));
+            setAwaitingClinicalResume(true);
+            setIsClinicalCaseComplete(false);
+            setGraphPhaseLabel('');
+            setIsLoading(false);
+            return;
+          }
 
-          setMessages(prev => ([
-            ...prev,
-            {
-              id: (Date.now() + 1).toString(),
-              role: MessageRole.MODEL,
-              text: result.finalDiagnosis,
-              timestamp: Date.now(),
-              suggestedActions,
-            }
-          ]));
+          if (result.finalDiagnosis) {
+            const suggestedActions = await resolveSuggestedActions(
+              text,
+              result.finalDiagnosis,
+              []
+            );
+
+            setMessages(prev => ([
+              ...prev,
+              {
+                id: (Date.now() + 1).toString(),
+                role: MessageRole.MODEL,
+                text: result.finalDiagnosis,
+                timestamp: Date.now(),
+                suggestedActions,
+              }
+            ]));
+            setAwaitingClinicalResume(false);
+            setIsClinicalCaseComplete(true);
+            setGraphPhaseLabel('');
+            setClarificationFlow({ isActive: false, rootQuery: '', selectedCards: [] });
+            setIsLoading(false);
+            return;
+          }
+        } catch (clinicalGraphError) {
+          // Production safety: if clinical graph cannot run due env/API issue,
+          // continue with normal mode handler instead of dead-ending the chat.
+          console.warn('[Clinical Graph] Falling back to standard chat flow:', clinicalGraphError);
           setAwaitingClinicalResume(false);
-          setIsClinicalCaseComplete(true);
           setGraphPhaseLabel('');
-          setClarificationFlow({ isActive: false, rootQuery: '', selectedCards: [] });
-          setIsLoading(false);
-          return;
         }
       }
 

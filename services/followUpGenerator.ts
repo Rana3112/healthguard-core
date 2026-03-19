@@ -6,7 +6,7 @@ const getEnvVar = (key: string): string | undefined => {
     const viteEnv = (import.meta as any)?.env?.[key];
     if (viteEnv) return viteEnv;
     if (key === 'VITE_GROQ_API_KEY') {
-        return (import.meta as any)?.env?.GROQ_API_KEY || (typeof process !== 'undefined' ? (process as any)?.env?.GROQ_API_KEY : undefined) || (typeof process !== 'undefined' ? (process as any)?.env?.VITE_GROQ_API_KEY : undefined);
+        return (import.meta as any)?.env?.VITE_GROQ_API_KEY || (import.meta as any)?.env?.GROQ_API_KEY || (typeof process !== 'undefined' ? (process as any)?.env?.VITE_GROQ_API_KEY : undefined) || (typeof process !== 'undefined' ? (process as any)?.env?.GROQ_API_KEY : undefined);
     }
     if (typeof process !== 'undefined') {
         return (process as any)?.env?.[key];

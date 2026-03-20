@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Heart, Thermometer, Droplets, Scale, Activity, Plus, X, Calendar, TrendingDown, TrendingUp } from 'lucide-react';
+import { notifyVitalsUpdated } from '../services/vitalsRAG';
 
 // --- Types ---
 interface VitalEntry {
@@ -73,6 +74,7 @@ const HealthDashboard: React.FC = () => {
     const saveEntries = useCallback((newEntries: VitalEntry[]) => {
         setEntries(newEntries);
         localStorage.setItem(STORAGE_KEY, JSON.stringify(newEntries));
+        notifyVitalsUpdated();
     }, []);
 
     const handleSubmit = (e: React.FormEvent) => {
@@ -174,9 +176,9 @@ const HealthDashboard: React.FC = () => {
 
     return (
         <div className="h-full flex flex-col bg-slate-50 dark:bg-[#0f1628] overflow-hidden relative">
-            <div className="flex-1 overflow-y-auto pb-20">
+            <div className="flex-1 overflow-y-auto scroll-smooth">
                 {/* Header */}
-                <div className="px-5 pt-5 pb-3 flex items-start justify-between">
+                <div className="px-4 sm:px-5 pt-5 pb-3 flex items-start justify-between">
                     <div>
                         <p className="text-xs text-slate-400 font-medium">Welcome back,</p>
                         <h2 className="text-xl font-extrabold text-slate-800 dark:text-white tracking-tight">Health Dashboard</h2>
@@ -187,7 +189,7 @@ const HealthDashboard: React.FC = () => {
                 </div>
 
                 {/* Time Range Tabs */}
-                <div className="px-5 mb-4">
+                <div className="px-4 sm:px-5 mb-4">
                     <div className="flex bg-slate-100 dark:bg-slate-800/60 rounded-2xl p-1 text-xs font-bold">
                         {([['7d', '7 Days'], ['30d', '30 Days'], ['1y', '1 Year']] as const).map(([key, label]) => (
                             <button key={key} onClick={() => setTimeRange(key as any)}
@@ -201,7 +203,7 @@ const HealthDashboard: React.FC = () => {
                 </div>
 
                 {/* Vitals Grid (2 columns) */}
-                <div className="px-5 grid grid-cols-2 gap-3 mb-4">
+                <div className="px-4 sm:px-5 grid grid-cols-2 gap-3 mb-4">
                     {/* Blood Pressure Card */}
                     <div className="bg-white dark:bg-[#1a2240] rounded-3xl p-4 shadow-sm border border-slate-100 dark:border-slate-700/50">
                         <div className="flex items-center gap-1.5 mb-3">
@@ -277,7 +279,7 @@ const HealthDashboard: React.FC = () => {
                 </div>
 
                 {/* Recent Entries */}
-                <div className="px-5 mb-4">
+                <div className="px-4 sm:px-5 mb-4">
                     <div className="flex items-center justify-between mb-3">
                         <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
                             <Calendar className="w-3 h-3" /> Recent Entries
@@ -310,6 +312,14 @@ const HealthDashboard: React.FC = () => {
                             ))}
                         </div>
                     )}
+                </div>
+
+                {/* Log Vitals Button */}
+                <div className="px-4 sm:px-5 pb-6">
+                    <button onClick={() => setShowForm(true)}
+                        className="w-full py-4 bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 text-white text-sm font-bold rounded-2xl shadow-lg shadow-teal-500/30 transition-all active:scale-[0.98] flex items-center justify-center gap-2">
+                        <Plus className="w-4 h-4" /> Log Vitals
+                    </button>
                 </div>
             </div>
 
@@ -361,14 +371,6 @@ const HealthDashboard: React.FC = () => {
                     </div>
                 </div>
             )}
-
-            {/* Fixed Bottom Button */}
-            <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-slate-50 dark:from-[#0f1628] via-slate-50/90 dark:via-[#0f1628]/90 to-transparent pt-8">
-                <button onClick={() => setShowForm(true)}
-                    className="w-full py-3.5 bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 text-white text-sm font-bold rounded-2xl shadow-lg shadow-teal-500/30 transition-all active:scale-[0.98] flex items-center justify-center gap-2">
-                    <Plus className="w-4 h-4" /> Log Vitals
-                </button>
-            </div>
         </div>
     );
 };

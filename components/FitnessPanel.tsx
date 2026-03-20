@@ -1,17 +1,18 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Dumbbell, Filter, ChevronDown, ChevronUp, Loader2, AlertCircle, Search, X, Flame, Heart, PlayCircle, Apple, Scale, Ruler, Download, Sparkles, Send, FileText, ArrowLeft, Bot, Activity } from 'lucide-react';
+import { Dumbbell, Filter, ChevronDown, ChevronUp, Loader2, AlertCircle, Search, X, Flame, Heart, PlayCircle, Apple, Scale, Ruler, Download, Sparkles, Send, FileText, ArrowLeft, Bot, Activity, Image as ImageIcon } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { sendMessageToAgent } from '../services/geminiService';
 import { generateCardFromGraphSignal } from '../services/followUpGenerator';
+import { retrieveVitalsForFitness } from '../services/vitalsRAG';
 import { ClarificationCard, ClarificationOption } from '../types';
 import { TextInputFlashcard } from './TextChatInterface';
 import Model from 'react-body-highlighter';
+import { getBackendUrl } from '../src/lib/backendUrl';
 
-const BACKEND_URL = (import.meta as any).env?.VITE_BACKEND_URL || 'https://healthguard-backend-yo9a.onrender.com';
-
+const BACKEND_URL = getBackendUrl();
 const mapTargetToMuscle = (target: string): { muscles: string[], type: 'anterior' | 'posterior' } => {
     const t = target.toLowerCase();
     const mapping: Record<string, { muscles: string[], type: 'anterior' | 'posterior' }> = {
@@ -143,6 +144,7 @@ interface ChatMessage {
     type: 'text' | 'plan';
     planData?: WorkoutPlan;
     suggestedQuestionCards?: ClarificationCard[];
+    image?: string;
 }
 
 const OptionFlashcard: React.FC<{
@@ -193,7 +195,10 @@ const FitnessPanel: React.FC = () => {
     const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
     const [inputMessage, setInputMessage] = useState('');
     const [isTyping, setIsTyping] = useState(false);
+    const [selectedImage, setSelectedImage] = useState<{ file: File; base64: string } | null>(null);
     const chatEndRef = useRef<HTMLDivElement>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const workoutPlanCacheRef = useRef<Map<string, WorkoutPlan>>(new Map());
 
     // Sync local plan view with global plan
     useEffect(() => {
@@ -308,11 +313,19 @@ const FitnessPanel: React.FC = () => {
     const generatePlan = async () => {
         if (!userStats.weight || !userStats.height) return;
 
+        const cacheKey = `${userStats.age}|${userStats.weight}|${userStats.height}|${userStats.diet}|${userStats.workoutIntensity}`;
+        const cachedPlan = workoutPlanCacheRef.current.get(cacheKey);
+        if (cachedPlan) {
+            setWorkoutPlan(cachedPlan);
+            setCoachStep('success');
+            return;
+        }
+
         setIsTyping(true);
 
         try {
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 90000); // 90s timeout
+            const timeoutId = setTimeout(() => controller.abort(), 180000); // allow long-running generation
 
             const res = await fetch(`${BACKEND_URL}/generate_workout`, {
                 method: 'POST',
@@ -334,20 +347,26 @@ const FitnessPanel: React.FC = () => {
             }
 
             const data = await res.json();
+            workoutPlanCacheRef.current.set(cacheKey, data);
             setWorkoutPlan(data);
             setCoachStep('success');
         } catch (err: any) {
             console.error("Plan Gen Error:", err);
-            alert(`Failed to generate plan: ${err.message || 'Unknown error'}`);
+            alert(`Failed to generate plan: ${err.name === 'AbortError' ? 'Request timed out. Please try again.' : (err.message || 'Unknown error')}`);
         } finally {
             setIsTyping(false);
         }
     };
 
-    const sendCoachMessage = async (messageText: string) => {
-        if (!messageText.trim()) return;
+    const sendCoachMessage = async (messageText: string, imageBase64?: string) => {
+        if (!messageText.trim() && !imageBase64) return;
 
-        const newUserMsg: ChatMessage = { role: 'user', content: messageText, type: 'text' };
+        const newUserMsg: ChatMessage = { 
+            role: 'user', 
+            content: messageText || 'Analyze this image', 
+            type: 'text',
+            image: imageBase64
+        };
         setChatMessages(prev => [...prev, newUserMsg]);
         setIsTyping(true);
 
@@ -358,9 +377,19 @@ const FitnessPanel: React.FC = () => {
                 text: m.content
             }));
 
+            const rawBase64 = imageBase64 ? imageBase64.split(',')[1] : undefined;
+            const mode = rawBase64 ? 'vision' : 'standard';
+            const vitalsForCoach = retrieveVitalsForFitness();
+
             const result: any = await sendMessageToAgent(
                 historyForService,
-                newUserMsg.content + "\n\n(CRITICAL INSTRUCTION: If recommending a diet or food, you MUST prioritize affordable, common Indian middle-class cuisine. Suggest everyday ingredients (like moong dal, paneer, sattu, eggs, soy chunks, local seasonal veggies) that are cheap and easily available to the average Indian family. Avoid expensive western diets like salmon, avocado, or quinoa unless specifically asked.\n\nAlso, you MUST use rich Markdown formatting. Use ### for headings, **bold** for emphasis, `- ` for bullet point lists, and Markdown tables with `|` for any tabular data.)"
+                (messageText || 'Analyze this image in detail. If it is a gym instrument, explain how to use it. If it is a workout technique, analyze the form. If it is food, provide nutritional information and whether it fits a fitness diet.') + "\n\n(CRITICAL INSTRUCTION: If recommending a diet or food, you MUST prioritize affordable, common Indian middle-class cuisine. Suggest everyday ingredients (like moong dal, paneer, sattu, eggs, soy chunks, local seasonal veggies) that are cheap and easily available to the average Indian family. Avoid expensive western diets like salmon, avocado, or quinoa unless specifically asked.\n\nAlso, you MUST use rich Markdown formatting. Use ### for headings, **bold** for emphasis, `- ` for bullet point lists, and Markdown tables with `|` for any tabular data.)",
+                rawBase64,
+                false,
+                undefined,
+                mode,
+                undefined,
+                vitalsForCoach || undefined
             );
 
             const graphCard = result.graphOutput
@@ -390,11 +419,28 @@ const FitnessPanel: React.FC = () => {
         }
     };
 
+    const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            setSelectedImage({ file, base64: reader.result as string });
+        };
+        reader.readAsDataURL(file);
+        e.target.value = '';
+    };
+
+    const handleRemoveImage = () => {
+        setSelectedImage(null);
+    };
+
     const handleSendMessage = async () => {
-        if (!inputMessage.trim()) return;
+        if (!inputMessage.trim() && !selectedImage) return;
         const outgoing = inputMessage;
+        const imageToSend = selectedImage;
         setInputMessage('');
-        await sendCoachMessage(outgoing);
+        setSelectedImage(null);
+        await sendCoachMessage(outgoing, imageToSend?.base64);
     };
 
     const handleCoachFlashcardOptionClick = async (card: ClarificationCard, option: ClarificationOption) => {
@@ -474,9 +520,9 @@ const FitnessPanel: React.FC = () => {
         : exercises;
 
     return (
-        <aside className="w-full h-full flex flex-col bg-slate-50 dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 overflow-hidden">
+        <aside className="w-full h-full flex flex-col bg-slate-50 dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 overflow-hidden min-h-0">
             {/* Header */}
-            <div className="p-6 pb-0">
+            <div className="p-4 sm:p-6 pb-0">
                 <div className="flex items-center justify-between mb-6">
                     <div className="flex items-center gap-3">
                         <div className="w-10 h-10 bg-teal-600/10 rounded-xl flex items-center justify-center text-teal-600">
@@ -528,7 +574,7 @@ const FitnessPanel: React.FC = () => {
 
             {/* Content Area */}
             <div className={`
-                flex-1 overflow-y-auto px-6 pb-6 
+                flex-1 overflow-y-auto px-4 sm:px-6 pb-6 min-h-0
                 ${view === 'browse' ? 'scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-700 hover:scrollbar-thumb-slate-300 dark:hover:scrollbar-thumb-slate-600' : 'scrollbar-hide'}
             `}>
                 {view === 'browse' && (
@@ -688,9 +734,9 @@ const FitnessPanel: React.FC = () => {
 
                 {/* AI COACH VIEW */}
                 {view === 'coach' && (
-                    <div className="flex-1 flex flex-col h-full">
+                            <div className="flex-1 flex flex-col h-full min-h-0">
                         {coachStep === 'form' ? (
-                            <div className="space-y-3">
+                            <div className="space-y-3 overflow-y-auto min-h-0 pb-24 pr-1 scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-700">
                                 <div className="text-center pt-1">
                                     <div className="inline-flex items-center justify-center w-10 h-10 bg-teal-50 dark:bg-teal-900/30 rounded-full mb-2">
                                         <Bot className="w-5 h-5 text-teal-600" />
@@ -789,7 +835,7 @@ const FitnessPanel: React.FC = () => {
                                 </button>
                             </div>
                         ) : (
-                            <div className="flex-1 flex flex-col h-full overflow-hidden">
+                            <div className="flex-1 flex flex-col h-full overflow-hidden min-h-0 pb-4">
                                 <div className="flex items-center justify-between mb-4">
                                     <div>
                                         <h3 className="font-bold text-lg text-teal-600">Your Plan</h3>
@@ -801,7 +847,7 @@ const FitnessPanel: React.FC = () => {
                                 </div>
 
                                 {/* Chat Messages Area */}
-                                <div className="flex-1 overflow-y-auto space-y-6 pr-2 mb-4 scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-700">
+                                <div className="flex-1 overflow-y-auto space-y-6 pr-2 mb-4 min-h-0 scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-700">
                                     {/* The Initial Plan Display */}
                                     <div className="bg-white dark:bg-slate-800/80 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
                                         <div className="p-4 bg-teal-50/50 dark:bg-teal-900/10 border-b border-slate-100 dark:border-slate-700 italic text-[13px] leading-relaxed text-slate-700 dark:text-slate-300">
@@ -974,6 +1020,15 @@ const FitnessPanel: React.FC = () => {
                                                         ? 'bg-gradient-to-br from-teal-500 to-teal-600 text-white rounded-2xl rounded-tr-sm'
                                                         : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-100 dark:border-slate-700 rounded-2xl rounded-tl-sm'
                                                         }`}>
+                                                        {msg.image && (
+                                                            <div className="mb-2">
+                                                                <img
+                                                                    src={msg.image}
+                                                                    alt="Uploaded"
+                                                                    className="max-w-full max-h-48 rounded-lg object-cover"
+                                                                />
+                                                            </div>
+                                                        )}
                                                         <ReactMarkdown
                                                             remarkPlugins={[remarkGfm]}
                                                             className="text-[13px] leading-relaxed break-words"
@@ -1051,6 +1106,28 @@ const FitnessPanel: React.FC = () => {
 
                                 {/* Chat Input Box */}
                                 <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
+                                    {/* Image Preview */}
+                                    {selectedImage && (
+                                        <div className="mb-2 relative inline-block">
+                                            <div className="flex items-center gap-2 p-2 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+                                                <img
+                                                    src={selectedImage.base64}
+                                                    alt="Preview"
+                                                    className="w-16 h-16 object-cover rounded-lg"
+                                                />
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-xs font-medium text-slate-700 dark:text-slate-300 truncate">{selectedImage.file.name}</p>
+                                                    <p className="text-[10px] text-teal-600 dark:text-teal-400 font-medium">Vision mode enabled</p>
+                                                </div>
+                                                <button
+                                                    onClick={handleRemoveImage}
+                                                    className="p-1.5 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 text-slate-400 hover:text-red-500 transition-colors"
+                                                >
+                                                    <X className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
                                     <div className="relative group">
                                         <div className="absolute inset-0 bg-gradient-to-r from-teal-500/10 to-blue-500/10 rounded-2xl blur-md opacity-0 group-focus-within:opacity-100 transition-opacity duration-500"></div>
                                         <input
@@ -1058,16 +1135,36 @@ const FitnessPanel: React.FC = () => {
                                             value={inputMessage}
                                             onChange={e => setInputMessage(e.target.value)}
                                             onKeyDown={e => e.key === 'Enter' && handleSendMessage()}
-                                            className="relative w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl pl-5 pr-14 py-4 text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none transition-all dark:text-white shadow-sm"
-                                            placeholder="Ask for alternatives, nutrition tips, or modifications..."
+                                            className="relative w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl pl-5 pr-24 py-4 text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none transition-all dark:text-white shadow-sm"
+                                            placeholder={selectedImage ? "Ask about this image..." : "Ask for alternatives, nutrition tips, or modifications..."}
                                         />
-                                        <button
-                                            onClick={handleSendMessage}
-                                            disabled={!inputMessage.trim() || isTyping}
-                                            className="absolute right-2 top-2 bottom-2 aspect-square bg-teal-600 text-white rounded-xl hover:bg-teal-700 hover:shadow-md hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:shadow-none flex items-center justify-center active:scale-95"
-                                        >
-                                            <Send className="w-4 h-4 ml-0.5" />
-                                        </button>
+                                        <div className="absolute right-2 top-2 bottom-2 flex items-center gap-1">
+                                            <input
+                                                ref={fileInputRef}
+                                                type="file"
+                                                accept="image/*"
+                                                onChange={handleImageSelect}
+                                                className="hidden"
+                                            />
+                                            <button
+                                                onClick={() => fileInputRef.current?.click()}
+                                                className={`aspect-square h-full rounded-xl transition-all flex items-center justify-center active:scale-95 ${
+                                                    selectedImage 
+                                                        ? 'bg-teal-100 dark:bg-teal-900/40 text-teal-600' 
+                                                        : 'bg-slate-100 dark:bg-slate-700 text-slate-500 hover:bg-teal-50 dark:hover:bg-teal-900/30 hover:text-teal-600'
+                                                }`}
+                                                title="Upload image"
+                                            >
+                                                <ImageIcon className="w-4 h-4" />
+                                            </button>
+                                            <button
+                                                onClick={handleSendMessage}
+                                                disabled={(!inputMessage.trim() && !selectedImage) || isTyping}
+                                                className="aspect-square h-full bg-teal-600 text-white rounded-xl hover:bg-teal-700 hover:shadow-md hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:shadow-none flex items-center justify-center active:scale-95"
+                                            >
+                                                <Send className="w-4 h-4 ml-0.5" />
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             </div>

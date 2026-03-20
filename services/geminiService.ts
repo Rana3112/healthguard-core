@@ -2,6 +2,8 @@ import React from 'react';
 import { GoogleGenAI, Type, FunctionDeclaration, Tool, Schema, Modality } from "@google/genai";
 import { sendMessageToGroq } from './groqService';
 import { AgentAction, HealthOrder, HealthAlert, ChatMessage, MessageRole } from "../types";
+import { getBackendUrl } from "../src/lib/backendUrl";
+import { getGeminiApiKey } from "../src/lib/apiKeys";
 
 export type ModelMode = 'fast' | 'standard' | 'thinking' | 'max_deep_think' | 'vision' | 'agent';
 
@@ -37,7 +39,7 @@ export const toolsDef: Tool[] = [
   { functionDeclarations: [searchMedicineTool, setHealthAlertTool] },
 ];
 
-const BACKEND_URL = (import.meta as any).env?.VITE_BACKEND_URL || 'https://healthguard-backend-yo9a.onrender.com';
+const BACKEND_URL = getBackendUrl();
 
 // Helper to handle tool calls — now async for API calls
 export const handleToolCall = async (
@@ -125,14 +127,12 @@ export const sendMessageToAgent = async (
   isEditRequest: boolean = false,
   userLocation?: { lat: number; lng: number } | null,
   mode: ModelMode = 'standard',
-  clinicalMemory?: string
+  clinicalMemory?: string,
+  vitalsContext?: string
 ): Promise<AgentResponse> => {
   // Initialize Gemini AI Client (Optional if only using Groq/OpenRouter)
   let ai: any = null;
-  const geminiApiKey =
-    (import.meta as any)?.env?.VITE_GEMINI_API_KEY ||
-    (import.meta as any)?.env?.API_KEY ||
-    (typeof process !== 'undefined' ? (process as any)?.env?.API_KEY : undefined);
+  const geminiApiKey = getGeminiApiKey();
   if (geminiApiKey) {
     ai = new GoogleGenAI({ apiKey: geminiApiKey });
   }
@@ -155,6 +155,7 @@ export const sendMessageToAgent = async (
     const visionSystemPrompt = `You are HealthGuard, an expert medical AI assistant.
     You MUST analyze the attached image in detail. The user has explicitly asked for image analysis.
     ${locationString}
+    ${vitalsContext ? `\n${vitalsContext}\n` : ''}
     Guidelines: 
     1. If it's a medicine bottle/box/strip, identify the exact product (name, generic name, strength, manufacturer) and provide:
        - What it's used for
@@ -224,6 +225,7 @@ export const sendMessageToAgent = async (
     PREVIOUS CLINICAL ANALYSIS MEMORY:
     ${clinicalMemory}
     Use this prior analysis as context for follow-up questions. Do not restart symptom questioning.` : ''}
+    ${vitalsContext ? `\n${vitalsContext}\n` : ''}
      ${userLocation ? `User location: ${userLocation.lat}, ${userLocation.lng}` : ''}
      Guidelines: 1. Prioritize Indian home remedies. 2. Be direct.`;
 
@@ -239,6 +241,7 @@ export const sendMessageToAgent = async (
     PREVIOUS CLINICAL ANALYSIS MEMORY:
     ${clinicalMemory}
     Use this as context and do not repeat the initial intake questions.` : ''}
+    ${vitalsContext ? `\n${vitalsContext}\n` : ''}
     ${userLocation ? `User location: ${userLocation.lat}, ${userLocation.lng}` : ''}
     Guidelines: 1. Provide detailed, reasoning-based advice. 2. Consider multiple possibilities.`;
 
@@ -282,6 +285,7 @@ export const sendMessageToAgent = async (
       PREVIOUS CLINICAL ANALYSIS MEMORY:
       ${clinicalMemory}
       Use this prior clinical context when answering follow-up questions.` : ''}
+      ${vitalsContext ? `\n${vitalsContext}\n` : ''}
       You have access to real-time pricing data.
       
       SEARCH RESULTS:
@@ -341,6 +345,7 @@ export const sendMessageToAgent = async (
     PREVIOUS CLINICAL ANALYSIS MEMORY:
     ${clinicalMemory}
     Use this prior analysis as context for answering follow-up questions. Do not restart symptom questioning.` : ''}
+    ${vitalsContext ? `\n${vitalsContext}\n` : ''}
     1. Prioritize 'Desi' Indian home remedies and affordable middle-class solutions.
     2. When suggesting diets or food, strictly use common, cheap Indian ingredients (e.g., moong dal, chana, sattu, local vegetables, soy chunks). DO NOT suggest expensive western foods like salmon, quinoa, or avocado natively.
     3. Explain in simple, supportive language.

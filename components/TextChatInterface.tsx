@@ -5,9 +5,11 @@ import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
 import { sendMessageToAgent, ModelMode } from '../services/geminiService';
 import { ensureFollowUpQuestions, generateCardFromGraphSignal, generateFollowUpQuestions, sanitizeFollowUpQuestions } from '../services/followUpGenerator';
+import { retrieveVitalsContext, retrieveVitalsContextLite } from '../services/vitalsRAG';
 import { AgentAction, ChatMessage, ClarificationCard, ClarificationOption, MessageRole } from '../types';
 import { runClinicalGraphTurn } from '../src/agents/clinicalGraph';
 import { clearSession } from '../src/agents/patientSession';
+import { getBackendUrl } from '../src/lib/backendUrl';
 
 const DIAGNOSIS_HEADERS = [
   'Aapki Taklif',
@@ -94,14 +96,14 @@ const StructuredDiagnosisCard: React.FC<{ text: string }> = ({ text }) => {
   const conditionTitle = buildConditionTitle(conditionSummary);
 
   return (
-    <div className="space-y-5">
-      <div className="rounded-[28px] bg-gradient-to-br from-teal-700 via-teal-600 to-cyan-500 text-white p-6 shadow-xl relative overflow-hidden">
+    <div className="space-y-5 w-full max-w-none">
+      <div className="w-full rounded-[28px] bg-gradient-to-br from-teal-700 via-teal-600 to-cyan-500 text-white p-6 shadow-xl relative overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.14),transparent_30%)]" />
         <div className="relative flex flex-col lg:flex-row gap-6 lg:items-start">
           <div className="flex-1">
             <div className="text-[11px] uppercase tracking-[0.3em] text-teal-100/90 mb-2">Dr. Sharma ka Assessment</div>
             <h2 className="text-3xl md:text-4xl font-extrabold leading-tight mb-3">{conditionTitle}</h2>
-            <p className="text-base md:text-lg text-teal-50/95 leading-relaxed max-w-2xl">
+            <p className="text-base md:text-lg text-teal-50/95 leading-relaxed max-w-none w-full">
               {conditionSummary}
             </p>
             <div className="flex flex-wrap gap-3 mt-8">
@@ -125,8 +127,8 @@ const StructuredDiagnosisCard: React.FC<{ text: string }> = ({ text }) => {
         </div>
       </div>
 
-      <div className="grid lg:grid-cols-2 gap-5">
-        <div className="rounded-[26px] border border-emerald-100 bg-emerald-50/70 p-0 overflow-hidden shadow-sm">
+      <div className="grid lg:grid-cols-2 gap-5 w-full">
+        <div className="w-full rounded-[26px] border border-emerald-100 bg-emerald-50/70 p-0 overflow-hidden shadow-sm">
           <div className="px-6 py-5 border-b border-emerald-100 bg-emerald-50/90">
             <div className="text-emerald-700 font-extrabold text-xl">Home Remedies</div>
             <div className="text-emerald-500 text-sm">Ghar Pe Kya Karein</div>
@@ -144,7 +146,7 @@ const StructuredDiagnosisCard: React.FC<{ text: string }> = ({ text }) => {
           </div>
         </div>
 
-        <div className="rounded-[26px] border border-amber-100 bg-amber-50/70 p-0 overflow-hidden shadow-sm">
+        <div className="w-full rounded-[26px] border border-amber-100 bg-amber-50/70 p-0 overflow-hidden shadow-sm">
           <div className="px-6 py-5 border-b border-amber-100 bg-amber-50/90">
             <div className="text-amber-700 font-extrabold text-xl">Ayurvedic Option</div>
             <div className="text-amber-500 text-sm">Desi Ilaaj</div>
@@ -165,7 +167,7 @@ const StructuredDiagnosisCard: React.FC<{ text: string }> = ({ text }) => {
         </div>
       </div>
 
-      <div className="rounded-[26px] border border-sky-100 bg-sky-50/70 overflow-hidden shadow-sm">
+      <div className="w-full rounded-[26px] border border-sky-100 bg-sky-50/70 overflow-hidden shadow-sm">
         <div className="px-6 py-5 border-b border-sky-100 bg-sky-50/90">
           <div className="text-sky-700 font-extrabold text-xl">Diet Guidance</div>
           <div className="text-sky-500 text-sm">Khaana Peena</div>
@@ -196,8 +198,8 @@ const StructuredDiagnosisCard: React.FC<{ text: string }> = ({ text }) => {
         </div>
       </div>
 
-      <div className="grid lg:grid-cols-2 gap-5">
-        <div className="rounded-[26px] border border-indigo-100 bg-indigo-50/70 overflow-hidden shadow-sm">
+      <div className="grid lg:grid-cols-2 gap-5 w-full">
+        <div className="w-full rounded-[26px] border border-indigo-100 bg-indigo-50/70 overflow-hidden shadow-sm">
           <div className="px-6 py-5 border-b border-indigo-100 bg-indigo-50/90">
             <div className="text-indigo-700 font-extrabold text-xl">Medicines (Chemist)</div>
             <div className="text-indigo-500 text-sm">Dawai — Kisi bhi Medical Store Se</div>
@@ -230,7 +232,7 @@ const StructuredDiagnosisCard: React.FC<{ text: string }> = ({ text }) => {
           </div>
         </div>
 
-        <div className="rounded-[26px] border border-rose-100 bg-rose-50/70 overflow-hidden shadow-sm">
+        <div className="w-full rounded-[26px] border border-rose-100 bg-rose-50/70 overflow-hidden shadow-sm">
           <div className="px-6 py-5 border-b border-rose-100 bg-rose-50/90">
             <div className="text-rose-700 font-extrabold text-xl">See Doctor If...</div>
             <div className="text-rose-500 text-sm">Kab Doctor ke Paas Jaayein</div>
@@ -253,7 +255,7 @@ const StructuredDiagnosisCard: React.FC<{ text: string }> = ({ text }) => {
         </div>
       </div>
 
-      <div className="rounded-[22px] border border-yellow-200 bg-yellow-50 p-5 shadow-sm flex gap-4 items-start">
+      <div className="w-full rounded-[22px] border border-yellow-200 bg-yellow-50 p-5 shadow-sm flex gap-4 items-start">
         <div className="w-12 h-12 rounded-2xl bg-white shadow-sm flex items-center justify-center text-2xl">👨‍⚕️</div>
         <div>
           <div className="font-extrabold text-yellow-900 mb-1">Dr. Sharma ki Salah</div>
@@ -261,7 +263,7 @@ const StructuredDiagnosisCard: React.FC<{ text: string }> = ({ text }) => {
         </div>
       </div>
 
-      <div className="rounded-[26px] border border-violet-100 bg-violet-50/70 overflow-hidden shadow-sm">
+      <div className="w-full rounded-[26px] border border-violet-100 bg-violet-50/70 overflow-hidden shadow-sm">
         <div className="px-6 py-5 border-b border-violet-100 bg-violet-50/90">
           <div className="text-violet-700 font-extrabold text-xl">Expected Recovery</div>
           <div className="text-violet-500 text-sm">Kitne Din Mein Theek Honge</div>
@@ -448,7 +450,7 @@ const TextChatInterface: React.FC<TextChatInterfaceProps> = ({ dispatch, message
     formData.append('audio', audioBlob, 'recording.webm');
 
     try {
-      const BACKEND_URL = (import.meta as any).env?.VITE_BACKEND_URL || 'https://healthguard-backend-yo9a.onrender.com';
+      const BACKEND_URL = getBackendUrl();
       const response = await fetch(`${BACKEND_URL}/api/transcribe`, {
         method: 'POST',
         body: formData,
@@ -542,12 +544,14 @@ const TextChatInterface: React.FC<TextChatInterfaceProps> = ({ dispatch, message
             ? imageToSend.base64.replace(/^data:image\/\w+;base64,/, '')
             : undefined;
 
+          const vitalsForGraph = retrieveVitalsContext();
           const result = await runClinicalGraphTurn({
             threadId,
             userInput: options?.clinicalResume ? undefined : text,
             resumeAnswer: options?.clinicalResume ? text : undefined,
             mode: modelMode, // Pass current mode (fast, standard, thinking, max_deep_think, vision, agent)
             image: imageBase64, // Pass base64 image for vision mode
+            vitalsContext: vitalsForGraph || undefined, // Pass RAG vitals context
           });
 
           if (result.state?.phase) {
@@ -662,7 +666,7 @@ const TextChatInterface: React.FC<TextChatInterfaceProps> = ({ dispatch, message
 
       // Agent Mode: Direct SERP search for medicines and maps for locations
       if (modelMode === 'agent') {
-        const BACKEND_URL = (import.meta as any).env?.VITE_BACKEND_URL || 'http://localhost:5001';
+        const BACKEND_URL = getBackendUrl();
         const OPENROUTER_API_KEY = (import.meta as any).env?.VITE_OPENROUTER_API_KEY || (import.meta as any).env?.OPENROUTER_API_KEY;
         
         // Determine if user wants medicine prices or location/map
@@ -808,6 +812,7 @@ Keep responses concise and actionable.`;
         }]);
 
         let finalResponseText = '';
+        const vitalsForDeep = retrieveVitalsContext();
 
         await sendMessageToOpenAI(
           history,
@@ -829,7 +834,10 @@ Keep responses concise and actionable.`;
                 ? { ...msg, thinkingText: (msg.thinkingText || '') + chunk, thinkingDuration: elapsed }
                 : msg
             ));
-          }
+          },
+          vitalsForDeep
+            ? `You are an incredibly advanced medical reasoning AI. Take your time to think through problems deeply and provide comprehensive, step-by-step reasoning before drawing a conclusion.\n\n${vitalsForDeep}`
+            : undefined
         );
 
         const followUps = await resolveSuggestedActions(text, finalResponseText, []);
@@ -845,6 +853,7 @@ Keep responses concise and actionable.`;
       }
 
       // Call Gemini Service with Mode
+      const vitalsCtx = retrieveVitalsContextLite();
       const response = await sendMessageToAgent(
         history,
         text,
@@ -852,7 +861,8 @@ Keep responses concise and actionable.`;
         false, // isEditRequest
         userLocation ? { lat: userLocation.lat, lng: userLocation.lon } : null,
         modelMode, // PASS THE MODE
-        isClinicalCaseComplete ? lastClinicalAnalysis : undefined
+        isClinicalCaseComplete ? lastClinicalAnalysis : undefined,
+        vitalsCtx || undefined
       );
 
       // Handle Agent Actions
@@ -1064,10 +1074,10 @@ Keep responses concise and actionable.`;
             className={`flex ${msg.role === MessageRole.USER ? 'justify-end' : 'justify-start'}`}
           >
             <div className={`
-                            max-w-[85%] lg:max-w-[75%] rounded-2xl p-4 shadow-sm relative group
+                            rounded-2xl p-4 shadow-sm relative group
                             ${msg.role === MessageRole.USER
-                ? 'bg-teal-600 text-white rounded-tr-none'
-                : 'bg-white text-slate-700 border border-slate-100 rounded-tl-none pb-9'
+                ? 'w-auto max-w-[88%] lg:max-w-[72%] bg-teal-600 text-white rounded-tr-none'
+                : 'w-full max-w-none lg:max-w-[96%] bg-white text-slate-700 border border-slate-100 rounded-tl-none pb-9'
               }
                         `}>
               {msg.image && (
@@ -1100,7 +1110,7 @@ Keep responses concise and actionable.`;
                 </div>
               )}
 
-              <div className={`prose prose-sm max-w-none ${msg.role === MessageRole.USER ? 'prose-invert text-white' : 'text-slate-700'}`}>
+              <div className={`prose prose-sm max-w-none break-words w-full ${msg.role === MessageRole.USER ? 'prose-invert text-white' : 'text-slate-700'}`}>
                 {msg.role === MessageRole.MODEL && isStructuredDiagnosis(msg.text) ? (
                   <StructuredDiagnosisCard text={msg.text} />
                 ) : (
@@ -1298,7 +1308,7 @@ Keep responses concise and actionable.`;
                 onClick={async () => {
                   try {
                     const token = await user?.getIdToken();
-                    const BACKEND_URL = (import.meta as any).env?.VITE_BACKEND_URL || 'http://localhost:5001';
+                    const BACKEND_URL = getBackendUrl();
                     const response = await fetch(`${BACKEND_URL}/api/create-checkout-session`, {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
@@ -1328,30 +1338,30 @@ Keep responses concise and actionable.`;
         <div className="max-w-4xl mx-auto">
 
           {/* Mode Switcher (above input bar) */}
-          <div className="flex justify-center mb-3">
-            <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-full border border-slate-200 dark:border-slate-700 gap-0.5">
-              <button onClick={() => setModelMode('fast')} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-medium transition-all ${modelMode === 'fast' ? 'bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-transparent'}`}>
-                <Zap className={`w-3 h-3 ${modelMode === 'fast' ? 'text-amber-500' : ''}`} /> Fast
+          <div className="flex w-full justify-start mb-3 overflow-x-auto overflow-y-hidden scrollbar-hide touch-pan-x px-1 pb-1">
+            <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-full border border-slate-200 dark:border-slate-700 gap-1 flex-nowrap min-w-max w-max pr-2 snap-x snap-mandatory">
+              <button onClick={() => setModelMode('fast')} className={`flex-none snap-start min-w-[78px] flex items-center justify-center gap-1 px-3 py-1.5 rounded-full text-[10px] sm:text-[11px] font-medium transition-all whitespace-nowrap ${modelMode === 'fast' ? 'bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-transparent'}`}>
+                <Zap className={`w-3 h-3 flex-shrink-0 ${modelMode === 'fast' ? 'text-amber-500' : ''}`} /> Fast
               </button>
-              <button onClick={() => setModelMode('standard')} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-medium transition-all ${modelMode === 'standard' ? 'bg-teal-50 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400 border border-teal-200 dark:border-teal-800 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-transparent'}`}>
-                <Sparkles className={`w-3 h-3 ${modelMode === 'standard' ? 'text-teal-500' : ''}`} /> Standard
+              <button onClick={() => setModelMode('standard')} className={`flex-none snap-start min-w-[90px] flex items-center justify-center gap-1 px-3 py-1.5 rounded-full text-[10px] sm:text-[11px] font-medium transition-all whitespace-nowrap ${modelMode === 'standard' ? 'bg-teal-50 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400 border border-teal-200 dark:border-teal-800 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-transparent'}`}>
+                <Sparkles className={`w-3 h-3 flex-shrink-0 ${modelMode === 'standard' ? 'text-teal-500' : ''}`} /> Standard
               </button>
-              <button onClick={() => setModelMode('thinking')} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-medium transition-all ${modelMode === 'thinking' ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-transparent'}`}>
-                <BrainCircuit className={`w-3 h-3 ${modelMode === 'thinking' ? 'text-indigo-500' : ''}`} /> Deep Think
+              <button onClick={() => setModelMode('thinking')} className={`flex-none snap-start min-w-[78px] flex items-center justify-center gap-1 px-3 py-1.5 rounded-full text-[10px] sm:text-[11px] font-medium transition-all whitespace-nowrap ${modelMode === 'thinking' ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-transparent'}`}>
+                <BrainCircuit className={`w-3 h-3 flex-shrink-0 ${modelMode === 'thinking' ? 'text-indigo-500' : ''}`} /> Deep
               </button>
-              <button onClick={() => setModelMode('max_deep_think')} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-medium transition-all ${modelMode === 'max_deep_think' ? 'bg-slate-800 text-white border border-slate-700 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-transparent'}`}>
-                <Activity className={`w-3 h-3 ${modelMode === 'max_deep_think' ? 'text-teal-400' : ''}`} /> Max Deep Think
+              <button onClick={() => setModelMode('max_deep_think')} className={`flex-none snap-start min-w-[78px] flex items-center justify-center gap-1 px-3 py-1.5 rounded-full text-[10px] sm:text-[11px] font-medium transition-all whitespace-nowrap ${modelMode === 'max_deep_think' ? 'bg-slate-800 text-white border border-slate-700 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-transparent'}`}>
+                <Activity className={`w-3 h-3 flex-shrink-0 ${modelMode === 'max_deep_think' ? 'text-teal-400' : ''}`} /> Max
               </button>
-              <button onClick={() => setModelMode('vision')} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-medium transition-all ${modelMode === 'vision' ? 'bg-fuchsia-50 dark:bg-fuchsia-900/30 text-fuchsia-600 dark:text-fuchsia-400 border border-fuchsia-200 dark:border-fuchsia-800 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-transparent'}`}>
-                <Eye className={`w-3 h-3 ${modelMode === 'vision' ? 'text-fuchsia-500' : ''}`} /> Vision
+              <button onClick={() => setModelMode('vision')} className={`flex-none snap-start min-w-[82px] flex items-center justify-center gap-1 px-3 py-1.5 rounded-full text-[10px] sm:text-[11px] font-medium transition-all whitespace-nowrap ${modelMode === 'vision' ? 'bg-fuchsia-50 dark:bg-fuchsia-900/30 text-fuchsia-600 dark:text-fuchsia-400 border border-fuchsia-200 dark:border-fuchsia-800 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-transparent'}`}>
+                <Eye className={`w-3 h-3 flex-shrink-0 ${modelMode === 'vision' ? 'text-fuchsia-500' : ''}`} /> Vision
               </button>
               <button
                 onClick={() => isPro ? setModelMode('agent') : setShowUpgradeModal(true)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-medium transition-all relative ${modelMode === 'agent' ? 'bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-transparent'}`}
+                className={`flex-none snap-start min-w-[84px] flex items-center justify-center gap-1 px-3 py-1.5 rounded-full text-[10px] sm:text-[11px] font-medium transition-all whitespace-nowrap relative ${modelMode === 'agent' ? 'bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-transparent'}`}
               >
-                <Bot className={`w-3 h-3 ${modelMode === 'agent' ? 'text-rose-500' : ''}`} />
+                <Bot className={`w-3 h-3 flex-shrink-0 ${modelMode === 'agent' ? 'text-rose-500' : ''}`} />
                 Agent
-                {!isPro && <Lock className="w-2 h-2 ml-0.5 text-slate-400" />}
+                {!isPro && <Lock className="w-2 h-2 ml-0.5 text-slate-400 flex-shrink-0" />}
               </button>
             </div>
           </div>

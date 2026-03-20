@@ -77,6 +77,8 @@ export interface PatientState {
   // Browser-compatible interrupt pattern fields
   awaiting_input?: boolean;
   pending_answer?: string | null;
+  // RAG context for patient vitals
+  vitals_context?: string;
 }
 
 export interface ChatMessage {

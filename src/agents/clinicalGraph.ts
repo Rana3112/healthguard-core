@@ -17,6 +17,8 @@ import {
   detectAgeGroup,
 } from './medicalKnowledgePrompts';
 import { getOrCreateCheckpointer } from './patientSession';
+import { getBackendUrl } from '../lib/backendUrl';
+import { getGroqApiKey, getOpenRouterApiKey, getGeminiApiKey } from '../lib/apiKeys';
 
 // =============================================================================
 // TYPES
@@ -50,27 +52,10 @@ interface StructuredDiagnosisPayload {
 // ENVIRONMENT HELPERS
 // =============================================================================
 
-const getEnvVar = (key: string): string | undefined => {
-  const viteEnv = (import.meta as any)?.env?.[key];
-  if (viteEnv) return viteEnv;
-  if (key === 'VITE_GROQ_API_KEY') {
-    return (import.meta as any)?.env?.VITE_GROQ_API_KEY || (import.meta as any)?.env?.GROQ_API_KEY || (typeof process !== 'undefined' ? (process as any)?.env?.VITE_GROQ_API_KEY : undefined) || (typeof process !== 'undefined' ? (process as any)?.env?.GROQ_API_KEY : undefined);
-  }
-  if (key === 'VITE_OPENROUTER_API_KEY') {
-    return (import.meta as any)?.env?.VITE_OPENROUTER_API_KEY || (import.meta as any)?.env?.OPENROUTER_API_KEY || (typeof process !== 'undefined' ? (process as any)?.env?.VITE_OPENROUTER_API_KEY : undefined) || (typeof process !== 'undefined' ? (process as any)?.env?.OPENROUTER_API_KEY : undefined);
-  }
-  if (key === 'VITE_GEMINI_API_KEY') {
-    return (import.meta as any)?.env?.VITE_GEMINI_API_KEY || (import.meta as any)?.env?.GEMINI_API_KEY || (typeof process !== 'undefined' ? (process as any)?.env?.VITE_GEMINI_API_KEY : undefined) || (typeof process !== 'undefined' ? (process as any)?.env?.GEMINI_API_KEY : undefined);
-  }
-  if (typeof process !== 'undefined') {
-    return (process as any)?.env?.[key];
-  }
-  return undefined;
-};
-
+// API URLs
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
-const BACKEND_URL = getEnvVar('VITE_BACKEND_URL') || 'http://localhost:5001';
+const BACKEND_URL = getBackendUrl();
 
 // =============================================================================
 // PROVIDER-SPECIFIC LLM CALLS
@@ -80,9 +65,9 @@ const BACKEND_URL = getEnvVar('VITE_BACKEND_URL') || 'http://localhost:5001';
  * Fast Mode: Llama 3.1-8b-instant via Groq
  */
 async function callGroqFast(messages: LLMMessage[]): Promise<string> {
-  const apiKey = getEnvVar('VITE_GROQ_API_KEY');
+  const apiKey = getGroqApiKey();
   console.log('[Clinical Graph] GROQ API Key available:', !!apiKey);
-  if (!apiKey) throw new Error('VITE_GROQ_API_KEY is required for Fast mode.');
+  if (!apiKey) throw new Error('GROQ_API_KEY is required for Fast mode.');
 
   console.log('[Clinical Graph] Calling GROQ Fast with model: llama-3.1-8b-instant');
   console.log('[Clinical Graph] Messages count:', messages.length);
@@ -116,9 +101,9 @@ async function callGroqFast(messages: LLMMessage[]): Promise<string> {
  * Standard Mode: Llama 3.3-70b-versatile via Groq
  */
 async function callGroqStandard(messages: LLMMessage[]): Promise<string> {
-  const apiKey = getEnvVar('VITE_GROQ_API_KEY');
+  const apiKey = getGroqApiKey();
   console.log('[Clinical Graph] GROQ Standard API Key available:', !!apiKey);
-  if (!apiKey) throw new Error('VITE_GROQ_API_KEY is required for Standard mode.');
+  if (!apiKey) throw new Error('GROQ_API_KEY is required for Standard mode.');
 
   console.log('[Clinical Graph] Calling GROQ Standard with model: llama-3.3-70b-versatile');
 
@@ -150,7 +135,7 @@ async function callGroqStandard(messages: LLMMessage[]): Promise<string> {
  * Deep Think Mode: GPT-OSS-120B via OpenRouter
  */
 async function callOpenRouterDeepThink(messages: LLMMessage[]): Promise<string> {
-  const apiKey = getEnvVar('VITE_OPENROUTER_API_KEY') || getEnvVar('OPENROUTER_API_KEY');
+  const apiKey = getOpenRouterApiKey();
   if (!apiKey) throw new Error('OPENROUTER_API_KEY is required for Deep Think mode.');
 
   const response = await fetch(OPENROUTER_API_URL, {
@@ -214,8 +199,8 @@ async function callNvidiaMaxDeepThink(messages: LLMMessage[]): Promise<string> {
  * Vision Mode: Gemini 2.5 Flash via Google AI
  */
 async function callGeminiVision(messages: LLMMessage[], image?: string): Promise<string> {
-  const apiKey = getEnvVar('VITE_GEMINI_API_KEY');
-  if (!apiKey) throw new Error('VITE_GEMINI_API_KEY is required for Vision mode.');
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) throw new Error('GEMINI_API_KEY is required for Vision mode.');
 
   // For vision, we need to use Gemini's REST API directly
   const systemMessage = messages.find(m => m.role === 'system')?.content || '';
@@ -267,7 +252,7 @@ async function callGeminiVision(messages: LLMMessage[], image?: string): Promise
  */
 async function callOpenRouterAgent(messages: LLMMessage[]): Promise<string> {
   // Agent mode uses the same model as Deep Think but with potential SERP integration
-  const apiKey = getEnvVar('VITE_OPENROUTER_API_KEY') || getEnvVar('OPENROUTER_API_KEY');
+  const apiKey = getOpenRouterApiKey();
   if (!apiKey) throw new Error('OPENROUTER_API_KEY is required for Agent mode.');
 
   // For clinical graph, we don't do SERP search in nodes - that's handled by the diagnosis node
@@ -380,6 +365,8 @@ const PatientStateAnnotation = Annotation.Root({
   model_mode: Annotation<ClinicalModelMode>({ reducer: keepLatest, default: () => 'standard' }),
   // New: Store image for vision mode
   attached_image: Annotation<string | null>({ reducer: keepLatest, default: () => null }),
+  // New: Store vitals RAG context
+  vitals_context: Annotation<string>({ reducer: keepLatest, default: () => '' }),
 });
 
 const REQUIRED_FIELDS: (keyof SocratesObject)[] = ['onset', 'character', 'severity', 'timing'];
@@ -488,7 +475,7 @@ async function initializeChiefComplaint(
   const response = await callLLM({
     mode: state.model_mode,
     messages: [
-      { role: 'system', content: INTENT_EXTRACTION_PROMPT },
+      { role: 'system', content: (state.vitals_context ? `${state.vitals_context}\n\n` : '') + INTENT_EXTRACTION_PROMPT },
       { role: 'user', content: userInput },
     ],
     image: state.attached_image || undefined,
@@ -522,7 +509,7 @@ async function generateNextCard(
   const response = await callLLM({
     mode: state.model_mode,
     messages: [
-      { role: 'system', content: INFORMATION_GATHERING_PROMPT },
+      { role: 'system', content: (state.vitals_context ? `${state.vitals_context}\n\n` : '') + INFORMATION_GATHERING_PROMPT },
       {
         role: 'user',
         content: `Patient's chief complaint: ${state.chief_complaint}\nWhat we know so far: ${JSON.stringify(
@@ -618,7 +605,7 @@ async function clinicalAbstractionNode(state: typeof PatientStateAnnotation.Stat
   const abstraction = await callLLM({
     mode: state.model_mode,
     messages: [
-      { role: 'system', content: CLINICAL_ABSTRACTION_PROMPT },
+      { role: 'system', content: (state.vitals_context ? `${state.vitals_context}\n\n` : '') + CLINICAL_ABSTRACTION_PROMPT },
       { role: 'user', content: `SOCRATES: ${JSON.stringify(state.socrates)}\nAnswers: ${JSON.stringify(state.answers_given)}` },
     ],
     image: state.attached_image || undefined,
@@ -644,7 +631,7 @@ async function medicalSearchNode(state: typeof PatientStateAnnotation.State): Pr
   const search = await callLLM({
     mode: state.model_mode,
     messages: [
-      { role: 'system', content: searchPrompt },
+      { role: 'system', content: (state.vitals_context ? `${state.vitals_context}\n\n` : '') + searchPrompt },
       { role: 'user', content: `Clinical abstraction:\n${state.clinical_abstraction || ''}` },
     ],
   });
@@ -687,7 +674,7 @@ async function diagnosisFormulationNode(state: typeof PatientStateAnnotation.Sta
     const response = await callLLM({
       mode: state.model_mode,
       messages: [
-        { role: 'system', content: indianDoctorPrompt },
+        { role: 'system', content: (state.vitals_context ? `${state.vitals_context}\n\n` : '') + indianDoctorPrompt },
         {
           role: 'user',
           content:
@@ -787,8 +774,9 @@ export async function runClinicalGraphTurn(params: {
   resumeAnswer?: string;
   mode?: ClinicalModelMode;
   image?: string; // Base64 image for vision mode
+  vitalsContext?: string; // RAG context for patient vitals
 }): Promise<ClinicalTurnResult> {
-  const { threadId, userInput = '', resumeAnswer, mode = 'standard', image } = params;
+  const { threadId, userInput = '', resumeAnswer, mode = 'standard', image, vitalsContext = '' } = params;
 
   console.log(`[Clinical Graph] Running turn with mode: ${mode}, threadId: ${threadId}`);
 
@@ -813,6 +801,7 @@ export async function runClinicalGraphTurn(params: {
       awaiting_input: false,
       model_mode: mode, // Allow mode changes mid-conversation
       attached_image: image || existingState.attached_image,
+      vitals_context: vitalsContext || existingState.vitals_context || '',
     } as typeof PatientStateAnnotation.State;
   } else {
     // Fresh start
@@ -822,6 +811,7 @@ export async function runClinicalGraphTurn(params: {
       messages: [new HumanMessage(userInput)],
       model_mode: mode,
       attached_image: image || null,
+      vitals_context: vitalsContext,
     } as typeof PatientStateAnnotation.State;
   }
 

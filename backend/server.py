@@ -1,6 +1,7 @@
 import os
 import json
 import time
+import threading
 from flask import Flask, request, jsonify, send_file, redirect
 from flask_cors import CORS
 from dotenv import load_dotenv
@@ -20,6 +21,72 @@ groq_api_key = os.getenv("GROQ_API_KEY")
 
 app = Flask(__name__)
 CORS(app)
+
+
+class TTLCache:
+    def __init__(self, max_entries=256):
+        self.max_entries = max_entries
+        self._data = {}
+        self._lock = threading.Lock()
+
+    def get(self, key):
+        now = time.time()
+        with self._lock:
+            item = self._data.get(key)
+            if not item:
+                return None
+            expires_at, value = item
+            if expires_at <= now:
+                self._data.pop(key, None)
+                return None
+            return value
+
+    def set(self, key, value, ttl_seconds):
+        with self._lock:
+            self._data[key] = (time.time() + ttl_seconds, value)
+            if len(self._data) > self.max_entries:
+                oldest_key = min(self._data.items(), key=lambda item: item[1][0])[0]
+                self._data.pop(oldest_key, None)
+
+
+def _normalize_text(value):
+    return " ".join(str(value or "").strip().lower().split())
+
+
+def _cache_key(prefix, payload):
+    return f"{prefix}:{json.dumps(payload, sort_keys=True, separators=(',', ':'))}"
+
+
+search_cache = TTLCache(max_entries=128)
+workout_cache = TTLCache(max_entries=128)
+interaction_cache = TTLCache(max_entries=128)
+
+
+def _response_json_and_status(response):
+    """Normalize Flask view return values into (json_data, status_code)."""
+    status_code = 200
+    if isinstance(response, tuple):
+        response, status_code = response[0], response[1]
+
+    if hasattr(response, "get_json"):
+        data = response.get_json(silent=True)
+        if data is not None:
+            return data, status_code
+
+    if hasattr(response, "get_data"):
+        raw = response.get_data(as_text=True)
+        return json.loads(raw), status_code
+
+    if isinstance(response, dict):
+        return response, status_code
+
+    raise ValueError("Unsupported Flask response type")
+
+
+def _run_view_in_test_context(view_func, path, payload):
+    with app.test_request_context(path, method="POST", json=payload):
+        return _response_json_and_status(view_func())
+
 
 # --- MongoDB Setup ---
 from pymongo import MongoClient
@@ -79,6 +146,21 @@ def load_local_exercises():
 load_local_exercises()
 
 
+# --- Health Check Endpoint ---
+@app.route("/", methods=["GET"])
+def health_check():
+    """Health check endpoint for OpenShift/container platforms."""
+    return jsonify(
+        {"status": "healthy", "service": "HealthGuard AI Backend", "version": "1.0.0"}
+    )
+
+
+@app.route("/health", methods=["GET"])
+def health():
+    """Alternative health check endpoint."""
+    return jsonify({"status": "ok"})
+
+
 # --- Removed /tts and /ocr Endpoints (Now using Gemini Cloud Voice) ---
 
 
@@ -99,10 +181,16 @@ def search_medicine_endpoint():
     if not query:
         return jsonify({"error": "Missing query parameter."}), 400
 
+    cache_key = _cache_key("search-medicine", {"query": _normalize_text(query)})
+    cached = search_cache.get(cache_key)
+    if cached is not None:
+        return jsonify(cached)
+
     print(f"[Agent] Searching for medicine: '{query}'...")
 
     try:
         results = search_medicine(query)
+        search_cache.set(cache_key, results, ttl_seconds=1800)
 
         if results.get("success"):
             print(
@@ -115,6 +203,16 @@ def search_medicine_endpoint():
     except Exception as e:
         print(f"[Agent] Search error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/api/android/search-medicine", methods=["POST"])
+def android_search_medicine_endpoint():
+    """Android-friendly proxy for cached medicine search."""
+    data = request.json or {}
+    query = data.get("query", "")
+    if not query:
+        return jsonify({"error": "Missing query parameter."}), 400
+    return search_medicine_endpoint()
 
 
 # --- Auto-Order: Browser-Use Agent ---
@@ -331,6 +429,20 @@ def generate_workout():
     if not all([age, weight, height, diet_score]):
         return jsonify({"error": "Missing required fields"}), 400
 
+    cache_key = _cache_key(
+        "generate_workout",
+        {
+            "age": str(age).strip(),
+            "weight": str(weight).strip(),
+            "height": str(height).strip(),
+            "diet_score": str(diet_score).strip(),
+            "workout_intensity": str(workout_intensity).strip().lower(),
+        },
+    )
+    cached = workout_cache.get(cache_key)
+    if cached is not None:
+        return jsonify(cached)
+
     # Ensure key is stripped of whitespace
     api_key_clean = GROQ_API_KEY.strip()
 
@@ -516,6 +628,7 @@ def generate_workout():
                     # No fallback images - let the UI handle missing images cleanly
 
         print("[Generate] Plan generation complete.")
+        workout_cache.set(cache_key, plan, ttl_seconds=3600)
         return jsonify(plan)
 
     except Exception as e:
@@ -703,6 +816,12 @@ def check_interactions():
     if len(medicines) < 2:
         return jsonify({"error": "At least 2 medicines required"}), 400
 
+    normalized_meds = sorted(_normalize_text(m) for m in medicines if m)
+    cache_key = _cache_key("check-interactions", {"medicines": normalized_meds})
+    cached = interaction_cache.get(cache_key)
+    if cached is not None:
+        return jsonify(cached)
+
     api_key_clean = OPENROUTER_API_KEY.strip()
     med_list = ", ".join(medicines)
 
@@ -772,6 +891,7 @@ def check_interactions():
         import json
 
         result = json.loads(content)
+        interaction_cache.set(cache_key, result, ttl_seconds=3600)
         return jsonify(result)
 
     except Exception as e:

@@ -33,7 +33,27 @@ interface NotificationPanelProps {
 
 const NotificationPanel: React.FC<NotificationPanelProps> = ({ isOpen, onClose }) => {
     const [notifications, setNotifications] = useState<NotificationItem[]>(getNotifHistory());
+    const [vitalsReminders, setVitalsReminders] = useState<any[]>([]);
     const panelRef = useRef<HTMLDivElement>(null);
+
+    // Fetch vitals reminders from backend
+    useEffect(() => {
+        if (!isOpen) return;
+        const fetchReminders = async () => {
+            try {
+                const backendUrl = (import.meta as any).env?.VITE_BACKEND_URL || 'https://healthguard-core-utkarshrana40-dev.apps.rm1.0a51.p1.openshiftapps.com';
+                const stored = localStorage.getItem('healthguard_user_email');
+                const email = stored || '';
+                if (!email) return;
+                const res = await fetch(`${backendUrl}/api/reminder/${encodeURIComponent(email)}`);
+                const data = await res.json();
+                if (data.reminders) setVitalsReminders(data.reminders);
+            } catch (err) {
+                console.warn('[Notifications] Failed to fetch reminders:', err);
+            }
+        };
+        fetchReminders();
+    }, [isOpen]);
 
     // Close on outside click
     useEffect(() => {
@@ -210,7 +230,38 @@ const NotificationPanel: React.FC<NotificationPanelProps> = ({ isOpen, onClose }
 
             {/* Notifications List */}
             <div className="max-h-80 overflow-y-auto">
-                {notifications.length === 0 ? (
+                {/* Vitals Reminders from Backend */}
+                {vitalsReminders.filter(r => !r.sent).length > 0 && (
+                    <div className="border-b border-slate-100 dark:border-slate-800">
+                        <div className="px-4 py-2 bg-amber-50 dark:bg-amber-900/10">
+                            <p className="text-[9px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider">Vitals Update Reminders</p>
+                        </div>
+                        {vitalsReminders.filter(r => !r.sent).map((reminder) => {
+                            const dueDate = new Date(reminder.due_date);
+                            const now = new Date();
+                            const daysLeft = Math.ceil((dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+                            return (
+                                <div key={reminder.id} className="flex items-start gap-3 px-4 py-3 border-b border-slate-50 dark:border-slate-800 bg-amber-50/30 dark:bg-amber-900/5">
+                                    <div className="w-8 h-8 bg-amber-100 dark:bg-amber-900/30 rounded-xl flex items-center justify-center shrink-0 mt-0.5">
+                                        <Activity className="w-4 h-4 text-amber-500" />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-xs font-bold text-slate-800 dark:text-white">Update Vitals Reminder</p>
+                                        <p className="text-[10px] text-slate-400 leading-relaxed">
+                                            Scheduled to remind you after {reminder.interval_label}.
+                                            {daysLeft > 0 ? ` ${daysLeft} days remaining.` : ' Due today!'}
+                                        </p>
+                                        <p className="text-[9px] text-slate-300 mt-1">
+                                            📧 {reminder.email || 'No email'} | Due: {dueDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                        </p>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
+
+                {notifications.length === 0 && vitalsReminders.filter(r => !r.sent).length === 0 ? (
                     <div className="py-10 text-center">
                         <Bell className="w-8 h-8 text-slate-200 dark:text-slate-700 mx-auto mb-2" />
                         <p className="text-xs text-slate-400">No notifications yet</p>

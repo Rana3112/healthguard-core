@@ -1109,5 +1109,236 @@ def nvidia_deepthink():
         return jsonify({"error": str(e)}), 500
 
 
+# ==================== VITALS REMINDER SYSTEM ====================
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from datetime import datetime, timedelta
+
+REMINDERS_FILE = os.path.join(basedir, "reminders.json")
+
+
+def _load_reminders():
+    if os.path.exists(REMINDERS_FILE):
+        with open(REMINDERS_FILE, "r") as f:
+            return json.load(f)
+    return []
+
+
+def _save_reminders(reminders):
+    with open(REMINDERS_FILE, "w") as f:
+        json.dump(reminders, f, indent=2)
+
+
+def send_email_notification(to_email, subject, body):
+    """Send email notification via SMTP."""
+    try:
+        smtp_host = os.getenv("SMTP_HOST", "smtp.gmail.com")
+        smtp_port = int(os.getenv("SMTP_PORT", "587"))
+        smtp_user = os.getenv("SMTP_USER", "")
+        smtp_pass = os.getenv("SMTP_PASS", "")
+
+        if not smtp_user or not smtp_pass:
+            print(
+                f"[Reminder] SMTP not configured. Would send to {to_email}: {subject}"
+            )
+            return False
+
+        msg = MIMEMultipart()
+        msg["From"] = smtp_user
+        msg["To"] = to_email
+        msg["Subject"] = subject
+        msg.attach(MIMEText(body, "html"))
+
+        server = smtplib.SMTP(smtp_host, smtp_port)
+        server.starttls()
+        server.login(smtp_user, smtp_pass)
+        server.send_message(msg)
+        server.quit()
+        print(f"[Reminder] Email sent to {to_email}")
+        return True
+    except Exception as e:
+        print(f"[Reminder] Email error: {e}")
+        return False
+
+
+def send_whatsapp_notification(phone, message):
+    """Send WhatsApp notification via Twilio or WhatsApp Business API."""
+    try:
+        twilio_sid = os.getenv("TWILIO_SID", "")
+        twilio_token = os.getenv("TWILIO_TOKEN", "")
+        twilio_whatsapp_from = os.getenv(
+            "TWILIO_WHATSAPP_FROM", "whatsapp:+14155238886"
+        )
+
+        if not twilio_sid or not twilio_token:
+            print(
+                f"[Reminder] Twilio not configured. Would send WhatsApp to {phone}: {message}"
+            )
+            return False
+
+        from twilio.rest import Client
+
+        client = Client(twilio_sid, twilio_token)
+        msg = client.messages.create(
+            body=message, from_=twilio_whatsapp_from, to=f"whatsapp:{phone}"
+        )
+        print(f"[Reminder] WhatsApp sent to {phone}: {msg.sid}")
+        return True
+    except Exception as e:
+        print(f"[Reminder] WhatsApp error: {e}")
+        return False
+
+
+def check_and_send_reminders():
+    """Check all reminders and send notifications for due ones."""
+    reminders = _load_reminders()
+    now = datetime.now()
+    updated = False
+
+    for reminder in reminders:
+        if reminder.get("sent"):
+            continue
+
+        due_date = datetime.fromisoformat(reminder["due_date"])
+        if now >= due_date:
+            email = reminder.get("email", "")
+            phone = reminder.get("phone", "")
+            interval = reminder.get("interval_label", "your scheduled time")
+
+            # Send email
+            if email:
+                subject = "HealthGuard AI - Vitals Update Reminder"
+                body = f"""
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                    <div style="background: linear-gradient(135deg, #0D9488, #10B981); padding: 30px; border-radius: 12px 12px 0 0;">
+                        <h1 style="color: white; margin: 0;">HealthGuard AI</h1>
+                        <p style="color: rgba(255,255,255,0.8); margin-top: 8px;">Vitals Update Reminder</p>
+                    </div>
+                    <div style="padding: 24px; background: #f8fafc; border-radius: 0 0 12px 12px;">
+                        <p style="font-size: 16px; color: #334155;">Hello!</p>
+                        <p style="font-size: 14px; color: #64748b;">
+                            It's been {interval} since you last logged your health vitals.
+                            Keeping your vitals up to date helps our AI provide better, personalized health advice.
+                        </p>
+                        <div style="background: white; padding: 16px; border-radius: 8px; margin: 16px 0; border-left: 4px solid #0D9488;">
+                            <p style="margin: 0; font-weight: bold; color: #0D9488;">Action Required:</p>
+                            <p style="margin: 8px 0 0 0; color: #334155;">Open HealthGuard AI and update your vitals in the Health Dashboard.</p>
+                        </div>
+                        <p style="font-size: 12px; color: #94a3b8; margin-top: 24px;">
+                            This is an automated reminder from HealthGuard AI. You can manage your reminders in Settings.
+                        </p>
+                    </div>
+                </div>
+                """
+                send_email_notification(email, subject, body)
+
+            # Send WhatsApp
+            if phone:
+                wa_message = (
+                    f"HealthGuard AI Reminder\n\n"
+                    f"It's been {interval} since you last logged your vitals.\n\n"
+                    f"Open the app and update your vitals in the Health Dashboard for better AI health advice.\n\n"
+                    f"- HealthGuard AI"
+                )
+                send_whatsapp_notification(phone, wa_message)
+
+            reminder["sent"] = True
+            reminder["sent_at"] = now.isoformat()
+            updated = True
+
+    if updated:
+        _save_reminders(reminders)
+
+
+# Run reminder checker every hour in background
+def reminder_scheduler():
+    while True:
+        try:
+            check_and_send_reminders()
+        except Exception as e:
+            print(f"[Reminder Scheduler] Error: {e}")
+        time.sleep(3600)  # Check every hour
+
+
+reminder_thread = threading.Thread(target=reminder_scheduler, daemon=True)
+reminder_thread.start()
+
+
+@app.route("/api/reminder", methods=["POST"])
+def create_reminder():
+    """Create a new vitals reminder."""
+    data = request.json
+    email = data.get("email", "")
+    phone = data.get("phone", "")
+    interval_days = int(data.get("interval_days", 7))
+    interval_label = data.get("interval_label", f"{interval_days} days")
+
+    if not email and not phone:
+        return jsonify({"error": "Email or phone is required"}), 400
+
+    due_date = datetime.now() + timedelta(days=interval_days)
+
+    reminder = {
+        "id": str(int(time.time() * 1000)),
+        "email": email,
+        "phone": phone,
+        "interval_days": interval_days,
+        "interval_label": interval_label,
+        "created_at": datetime.now().isoformat(),
+        "due_date": due_date.isoformat(),
+        "sent": False,
+    }
+
+    reminders = _load_reminders()
+    reminders.append(reminder)
+    _save_reminders(reminders)
+
+    print(
+        f"[Reminder] Created: {interval_label} reminder for {email or phone}, due: {due_date.strftime('%Y-%m-%d')}"
+    )
+    return jsonify({"success": True, "reminder": reminder})
+
+
+@app.route("/api/reminder/<email>", methods=["GET"])
+def get_reminders(email):
+    """Get all reminders for a user."""
+    reminders = _load_reminders()
+    user_reminders = [r for r in reminders if r.get("email") == email]
+    return jsonify({"reminders": user_reminders})
+
+
+@app.route("/api/reminder/<reminder_id>", methods=["DELETE"])
+def delete_reminder(reminder_id):
+    """Delete a reminder."""
+    reminders = _load_reminders()
+    reminders = [r for r in reminders if r.get("id") != reminder_id]
+    _save_reminders(reminders)
+    return jsonify({"success": True})
+
+
+@app.route("/api/reminder/test", methods=["POST"])
+def test_reminder():
+    """Test email/WhatsApp notification."""
+    data = request.json
+    email = data.get("email", "")
+    phone = data.get("phone", "")
+
+    results = {}
+    if email:
+        results["email"] = send_email_notification(
+            email,
+            "HealthGuard AI - Test Notification",
+            "<h2>Test Successful!</h2><p>Your email notifications are configured correctly.</p>",
+        )
+    if phone:
+        results["whatsapp"] = send_whatsapp_notification(
+            phone,
+            "HealthGuard AI - Test Notification\n\nYour WhatsApp notifications are configured correctly.",
+        )
+
+    return jsonify({"success": True, "results": results})
+
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5001)

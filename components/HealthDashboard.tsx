@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Heart, Thermometer, Droplets, Scale, Activity, Plus, X, Calendar, TrendingDown, TrendingUp } from 'lucide-react';
 import { notifyVitalsUpdated } from '../services/vitalsRAG';
+import { getBackendUrl } from '../src/lib/backendUrl';
+import { useAuth } from '../src/context/AuthContext';
 
 // --- Types ---
 interface VitalEntry {
@@ -57,11 +59,12 @@ function VitalProgressBar({ value, max, color }: { value: number; max: number; c
 }
 
 const HealthDashboard: React.FC = () => {
+    const { user } = useAuth();
     const [entries, setEntries] = useState<VitalEntry[]>([]);
     const [showForm, setShowForm] = useState(false);
     const [timeRange, setTimeRange] = useState<'7d' | '30d' | '1y'>('7d');
     const [formData, setFormData] = useState({
-        bp_systolic: '', bp_diastolic: '', blood_sugar: '', weight: '', temperature: '', heart_rate: '', notes: '', context: 'Resting'
+        bp_systolic: '', bp_diastolic: '', blood_sugar: '', weight: '', temperature: '', heart_rate: '', notes: '', context: 'Resting', reminderDays: '0'
     });
 
     useEffect(() => {
@@ -92,7 +95,31 @@ const HealthDashboard: React.FC = () => {
             ...(formData.notes && { notes: formData.notes }),
         };
         saveEntries([entry, ...entries]);
-        setFormData({ bp_systolic: '', bp_diastolic: '', blood_sugar: '', weight: '', temperature: '', heart_rate: '', notes: '', context: 'Resting' });
+
+        // Create reminder if interval selected
+        const reminderDays = Number(formData.reminderDays || '0');
+        if (reminderDays > 0) {
+            const intervalLabels: Record<number, string> = {
+                7: '7 days', 14: '14 days', 30: '30 days',
+                90: '3 months', 180: '6 months', 365: '1 year'
+            };
+            const backendUrl = getBackendUrl();
+            fetch(`${backendUrl}/api/reminder`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    email: user?.email || '',
+                    interval_days: reminderDays,
+                    interval_label: intervalLabels[reminderDays] || `${reminderDays} days`,
+                })
+            }).then(r => r.json()).then(data => {
+                console.log('[Reminder] Created:', data);
+            }).catch(err => {
+                console.warn('[Reminder] Failed to create:', err);
+            });
+        }
+
+        setFormData({ bp_systolic: '', bp_diastolic: '', blood_sugar: '', weight: '', temperature: '', heart_rate: '', notes: '', context: 'Resting', reminderDays: '0' });
         setShowForm(false);
     };
 
@@ -325,8 +352,8 @@ const HealthDashboard: React.FC = () => {
 
             {/* Log Vitals Form Overlay */}
             {showForm && (
-                <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm z-20 flex items-end sm:items-center justify-center" onClick={() => setShowForm(false)}>
-                    <div className="w-full max-w-md bg-white dark:bg-[#1a2240] rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl border border-slate-200 dark:border-slate-700 animate-in slide-in-from-bottom-4 duration-300" onClick={e => e.stopPropagation()}>
+                <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm z-20 flex items-center justify-center p-4" onClick={() => setShowForm(false)}>
+                    <div className="w-full max-w-md bg-white dark:bg-[#1a2240] rounded-3xl p-5 shadow-2xl border border-slate-200 dark:border-slate-700 animate-in fade-in zoom-in-95 duration-300 max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
                         <div className="flex items-center justify-between mb-4">
                             <h3 className="text-base font-bold text-slate-800 dark:text-white">📋 Log Today's Vitals</h3>
                             <button onClick={() => setShowForm(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">
@@ -363,6 +390,19 @@ const HealthDashboard: React.FC = () => {
                                     <input type="text" value={formData.notes} onChange={e => setFormData({ ...formData, notes: e.target.value })}
                                         className="w-full mt-1 px-3 py-2 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-teal-500 outline-none text-slate-700 dark:text-white" placeholder="Optional..." />
                                 </div>
+                            </div>
+                            <div>
+                                <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Remind me to update again</label>
+                                <select value={formData.reminderDays || '0'} onChange={e => setFormData({ ...formData, reminderDays: e.target.value })}
+                                    className="w-full mt-1 px-3 py-2 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-teal-500 outline-none text-slate-700 dark:text-white">
+                                    <option value="0">No reminder</option>
+                                    <option value="7">After 7 days</option>
+                                    <option value="14">After 14 days</option>
+                                    <option value="30">After 30 days</option>
+                                    <option value="90">After 3 months</option>
+                                    <option value="180">After 6 months</option>
+                                    <option value="365">After 1 year</option>
+                                </select>
                             </div>
                             <button type="submit" className="w-full py-3 bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 text-white text-sm font-bold rounded-2xl transition-all shadow-lg shadow-teal-500/20 active:scale-[0.98]">
                                 Save Entry

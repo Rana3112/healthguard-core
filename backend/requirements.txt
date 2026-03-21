@@ -6,3 +6,4 @@ langchain-google-genai
 pymongo
 gunicorn
 stripe
+twilio

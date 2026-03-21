@@ -1162,8 +1162,14 @@ def send_email_notification(to_email, subject, body):
         return False
 
 
-def send_whatsapp_notification(phone, message):
-    """Send WhatsApp notification via Twilio or WhatsApp Business API."""
+def send_whatsapp_notification(
+    phone, message, use_template=False, template_variables=None
+):
+    """Send WhatsApp notification via Twilio or WhatsApp Business API.
+
+    For business-initiated conversations, we must use approved templates.
+    For user-initiated conversations (within 24h of user reply), we can send free-form messages.
+    """
     try:
         twilio_sid = os.getenv("TWILIO_SID", "")
         twilio_token = os.getenv("TWILIO_TOKEN", "")
@@ -1180,10 +1186,30 @@ def send_whatsapp_notification(phone, message):
         from twilio.rest import Client
 
         client = Client(twilio_sid, twilio_token)
-        msg = client.messages.create(
-            body=message, from_=twilio_whatsapp_from, to=f"whatsapp:{phone}"
-        )
-        print(f"[Reminder] WhatsApp sent to {phone}: {msg.sid}")
+
+        if use_template and template_variables:
+            # Use approved template for business-initiated conversations
+            # Template: Appointment Reminders (ContentSid: HXb5b62575e6e4ff6129ad7c8efe1f983e)
+            # Variables: {{1}} = date, {{2}} = time
+            content_sid = template_variables.get(
+                "content_sid", "HXb5b62575e6e4ff6129ad7c8efe1f983e"
+            )
+            variables = template_variables.get("variables", {})
+
+            msg = client.messages.create(
+                from_=twilio_whatsapp_from,
+                to=f"whatsapp:{phone}",
+                content_sid=content_sid,
+                content_variables=json.dumps(variables),
+            )
+            print(f"[Reminder] WhatsApp template sent to {phone}: {msg.sid}")
+        else:
+            # Send free-form message (only works within 24h of user's last message)
+            msg = client.messages.create(
+                body=message, from_=twilio_whatsapp_from, to=f"whatsapp:{phone}"
+            )
+            print(f"[Reminder] WhatsApp free-form message sent to {phone}: {msg.sid}")
+
         return True
     except Exception as e:
         print(f"[Reminder] WhatsApp error: {e}")
@@ -1235,13 +1261,21 @@ def check_and_send_reminders():
 
             # Send WhatsApp
             if phone:
-                wa_message = (
-                    f"HealthGuard AI Reminder\n\n"
-                    f"It's been {interval} since you last logged your vitals.\n\n"
-                    f"Open the app and update your vitals in the Health Dashboard for better AI health advice.\n\n"
-                    f"- HealthGuard AI"
+                # Use template for business-initiated conversation
+                due_date = datetime.fromisoformat(reminder["due_date"])
+                formatted_date = due_date.strftime("%m/%d")
+                formatted_time = due_date.strftime("%I%p").lower()  # e.g., "3pm"
+
+                template_variables = {
+                    "content_sid": "HXb5b62575e6e4ff6129ad7c8efe1f983e",  # Appointment Reminders template
+                    "variables": {"1": formatted_date, "2": formatted_time},
+                }
+                send_whatsapp_notification(
+                    phone,
+                    None,
+                    use_template=True,
+                    template_variables=template_variables,
                 )
-                send_whatsapp_notification(phone, wa_message)
 
             reminder["sent"] = True
             reminder["sent_at"] = now.isoformat()
@@ -1417,16 +1451,33 @@ def create_general_reminder():
 
         # Send WhatsApp confirmation if phone provided
         if phone:
-            formatted_date = due_date.strftime("%A, %B %d, %Y")
-            wa_message = (
-                f"HealthGuard AI - Reminder Confirmation\n\n"
-                f"Your reminder has been set:\n\n"
-                f"📝 Text: {reminder_text}\n"
-                f"📅 Scheduled for: {formatted_date} at {reminder_time if reminder_time else '10:00 AM'}\n\n"
-                f"You'll receive another notification at the scheduled time.\n\n"
-                f"- HealthGuard AI"
+            # Use template for business-initiated conversation
+            formatted_date = due_date.strftime("%m/%d")
+            # Parse reminder_time if provided, otherwise use default
+            if reminder_time:
+                # Try to parse time like "10:00 AM" or "10am"
+                import re
+
+                time_match = re.search(
+                    r"(\d{1,2})(?::(\d{2}))?\s*(am|pm|AM|PM)", reminder_time
+                )
+                if time_match:
+                    hour = int(time_match.group(1))
+                    minute = time_match.group(2) or "00"
+                    ampm = time_match.group(3).lower()
+                    formatted_time = f"{hour}:{minute}{ampm}"
+                else:
+                    formatted_time = "10:00am"
+            else:
+                formatted_time = "10:00am"
+
+            template_variables = {
+                "content_sid": "HXb5b62575e6e4ff6129ad7c8efe1f983e",  # Appointment Reminders template
+                "variables": {"1": formatted_date, "2": formatted_time},
+            }
+            send_whatsapp_notification(
+                phone, None, use_template=True, template_variables=template_variables
             )
-            send_whatsapp_notification(phone, wa_message)
 
         print(
             f"[General Reminder] Created: {reminder_text[:50]}... for {email or phone}, due: {due_date.strftime('%Y-%m-%d %H:%M')}"

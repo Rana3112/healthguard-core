@@ -1115,7 +1115,7 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import datetime, timedelta
 
-REMINDERS_FILE = os.path.join(basedir, "reminders.json")
+REMINDERS_FILE = "/tmp/reminders.json"
 
 
 def _load_reminders():
@@ -1338,6 +1338,89 @@ def test_reminder():
         )
 
     return jsonify({"success": True, "results": results})
+
+
+@app.route("/api/general-reminder", methods=["POST"])
+def create_general_reminder():
+    """Create a general reminder (not just for vitals)."""
+    data = request.json
+    email = data.get("email", "")
+    reminder_text = data.get("reminder_text", "")
+    due_date_str = data.get("due_date", "")
+    reminder_time = data.get("reminder_time", "")
+
+    if not email:
+        return jsonify({"error": "Email is required"}), 400
+    if not reminder_text:
+        return jsonify({"error": "Reminder text is required"}), 400
+
+    try:
+        # Parse due date
+        if due_date_str:
+            due_date = datetime.fromisoformat(due_date_str.replace("Z", "+00:00"))
+        else:
+            due_date = datetime.now() + timedelta(days=1)
+
+        # Create reminder object
+        reminder = {
+            "id": str(int(time.time() * 1000)),
+            "email": email,
+            "phone": "",
+            "interval_days": 0,
+            "interval_label": f"General reminder: {reminder_text[:50]}...",
+            "reminder_text": reminder_text,
+            "reminder_time": reminder_time,
+            "created_at": datetime.now().isoformat(),
+            "due_date": due_date.isoformat(),
+            "sent": False,
+            "type": "general",
+        }
+
+        # Save to reminders list
+        reminders = _load_reminders()
+        reminders.append(reminder)
+        _save_reminders(reminders)
+
+        # Send confirmation email immediately
+        formatted_date = due_date.strftime("%A, %B %d, %Y")
+        subject = "HealthGuard AI - Reminder Confirmation"
+        body = f"""
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <div style="background: linear-gradient(135deg, #8B5CF6, #EC4899); padding: 30px; border-radius: 12px 12px 0 0;">
+                <h1 style="color: white; margin: 0;">HealthGuard AI</h1>
+                <p style="color: rgba(255,255,255,0.8); margin-top: 8px;">Reminder Confirmation</p>
+            </div>
+            <div style="padding: 24px; background: #f8fafc; border-radius: 0 0 12px 12px;">
+                <p style="font-size: 16px; color: #334155;">Hello!</p>
+                <p style="font-size: 14px; color: #64748b;">
+                    Your reminder has been successfully set:
+                </p>
+                <div style="background: white; padding: 16px; border-radius: 8px; margin: 16px 0; border-left: 4px solid #8B5CF6;">
+                    <p style="margin: 0; font-weight: bold; color: #8B5CF6;">Reminder Details:</p>
+                    <p style="margin: 8px 0 0 0; color: #334155; font-size: 14px;">
+                        <strong>Text:</strong> {reminder_text}<br>
+                        <strong>Scheduled for:</strong> {formatted_date} at {reminder_time if reminder_time else "10:00 AM"}
+                    </p>
+                </div>
+                <p style="font-size: 14px; color: #64748b;">
+                    You'll receive another notification at the scheduled time.
+                </p>
+                <p style="font-size: 12px; color: #94a3b8; margin-top: 24px;">
+                    This is an automated confirmation from HealthGuard AI. You can manage your reminders in the app settings.
+                </p>
+            </div>
+        </div>
+        """
+        send_email_notification(email, subject, body)
+
+        print(
+            f"[General Reminder] Created: {reminder_text[:50]}... for {email}, due: {due_date.strftime('%Y-%m-%d %H:%M')}"
+        )
+        return jsonify({"success": True, "reminder": reminder})
+
+    except Exception as e:
+        print(f"[General Reminder] Error: {e}")
+        return jsonify({"error": str(e)}), 500
 
 
 if __name__ == "__main__":

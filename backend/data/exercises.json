@@ -49068,5 +49068,181 @@
     ],
     "gifUrl": "https://raw.githubusercontent.com/hasaneyldrm/exercises-dataset/main/videos/0859-bd5b860.gif",
     "bodyPart": "lower arms"
+  },
+  {
+    "id": "0002",
+    "name": "45° side bend",
+    "force": "pull",
+    "level": "intermediate",
+    "mechanic": "compound",
+    "equipment": "body weight",
+    "primaryMuscles": [
+      "abdominals"
+    ],
+    "secondaryMuscles": [
+      "abdominals"
+    ],
+    "instructions": [
+      "Stand with your feet shoulder-width apart and your arms extended straight down by your sides.",
+      "Keeping your back straight and your core engaged, slowly bend your torso to one side, lowering your hand towards your knee.",
+      "Pause for a moment at the bottom, then slowly return to the starting position.",
+      "Repeat on the other side.",
+      "Continue alternating sides for the desired number of repetitions."
+    ],
+    "category": "waist",
+    "images": [
+      "0002-Hy9D21L.jpg"
+    ],
+    "gifUrl": "https://raw.githubusercontent.com/hasaneyldrm/exercises-dataset/main/videos/0002-Hy9D21L.gif",
+    "bodyPart": "waist"
+  },
+  {
+    "id": "0738",
+    "name": "sled 45в° calf press",
+    "force": "pull",
+    "level": "intermediate",
+    "mechanic": "compound",
+    "equipment": "sled machine",
+    "primaryMuscles": [
+      "hamstrings"
+    ],
+    "secondaryMuscles": [
+      "hamstrings"
+    ],
+    "instructions": [
+      "Adjust the sled machine to a 45-degree angle.",
+      "Place your feet on the sled platform with your toes pointing forward.",
+      "Push the sled platform away from you by extending your ankles and calves.",
+      "Pause for a moment at the top, then slowly lower the sled platform back to the starting position.",
+      "Repeat for the desired number of repetitions."
+    ],
+    "category": "legs",
+    "images": [
+      "0738-qCNVnaU.jpg"
+    ],
+    "gifUrl": "https://raw.githubusercontent.com/hasaneyldrm/exercises-dataset/main/videos/0738-qCNVnaU.gif",
+    "bodyPart": "lower legs"
+  },
+  {
+    "id": "0739",
+    "name": "sled 45в° leg press",
+    "force": "pull",
+    "level": "intermediate",
+    "mechanic": "compound",
+    "equipment": "sled machine",
+    "primaryMuscles": [
+      "quadriceps"
+    ],
+    "secondaryMuscles": [
+      "quadriceps",
+      "hamstrings",
+      "calves"
+    ],
+    "instructions": [
+      "Adjust the seat and footplate of the sled machine to a comfortable position.",
+      "Sit on the sled machine with your back against the backrest and your feet shoulder-width apart on the footplate.",
+      "Grip the handles on the sides of the seat for stability.",
+      "Push the footplate away from your body by extending your legs, keeping your heels on the footplate.",
+      "Continue pushing until your legs are almost fully extended, but without locking your knees.",
+      "Pause for a moment at the top of the movement, then slowly lower the footplate back towards your body by bending your knees.",
+      "Repeat for the desired number of repetitions."
+    ],
+    "category": "legs",
+    "images": [
+      "0739-10Z2DXU.jpg"
+    ],
+    "gifUrl": "https://raw.githubusercontent.com/hasaneyldrm/exercises-dataset/main/videos/0739-10Z2DXU.gif",
+    "bodyPart": "upper legs"
+  },
+  {
+    "id": "1464",
+    "name": "sled 45в° leg press (back pov)",
+    "force": "pull",
+    "level": "intermediate",
+    "mechanic": "compound",
+    "equipment": "sled machine",
+    "primaryMuscles": [
+      "quadriceps"
+    ],
+    "secondaryMuscles": [
+      "quadriceps",
+      "hamstrings",
+      "calves"
+    ],
+    "instructions": [
+      "Adjust the seat of the sled machine so that your knees are at a 45-degree angle.",
+      "Sit on the sled machine with your back against the backrest and your feet shoulder-width apart on the footplate.",
+      "Grip the handles on the sides of the seat for stability.",
+      "Push the footplate away from your body by extending your legs, keeping your heels on the footplate.",
+      "Pause for a moment at the fully extended position.",
+      "Slowly bend your knees and lower the footplate back towards your body, controlling the movement.",
+      "Repeat for the desired number of repetitions."
+    ],
+    "category": "legs",
+    "images": [
+      "1464-yn2lLSI.jpg"
+    ],
+    "gifUrl": "https://raw.githubusercontent.com/hasaneyldrm/exercises-dataset/main/videos/1464-yn2lLSI.gif",
+    "bodyPart": "upper legs"
+  },
+  {
+    "id": "1463",
+    "name": "sled 45° leg press (side pov)",
+    "force": "pull",
+    "level": "intermediate",
+    "mechanic": "compound",
+    "equipment": "sled machine",
+    "primaryMuscles": [
+      "quadriceps"
+    ],
+    "secondaryMuscles": [
+      "quadriceps",
+      "hamstrings",
+      "calves"
+    ],
+    "instructions": [
+      "Adjust the seat of the sled machine so that your knees are at a 90-degree angle when your feet are on the footplate.",
+      "Sit on the sled machine with your back flat against the backrest and your feet shoulder-width apart on the footplate.",
+      "Grip the handles on the sides of the seat for stability.",
+      "Push against the footplate to extend your legs, straightening them completely.",
+      "Pause for a moment at the top, then slowly bend your knees to lower the footplate back to the starting position.",
+      "Repeat for the desired number of repetitions."
+    ],
+    "category": "legs",
+    "images": [
+      "1463-2Qh2J1e.jpg"
+    ],
+    "gifUrl": "https://raw.githubusercontent.com/hasaneyldrm/exercises-dataset/main/videos/1463-2Qh2J1e.gif",
+    "bodyPart": "upper legs"
+  },
+  {
+    "id": "0740",
+    "name": "sled 45в° leg wide press",
+    "force": "pull",
+    "level": "intermediate",
+    "mechanic": "compound",
+    "equipment": "sled machine",
+    "primaryMuscles": [
+      "quadriceps"
+    ],
+    "secondaryMuscles": [
+      "quadriceps",
+      "hamstrings",
+      "calves"
+    ],
+    "instructions": [
+      "Adjust the sled machine to a 45-degree angle.",
+      "Sit on the sled machine with your back against the pad and your feet on the foot platform.",
+      "Position your feet wider than shoulder-width apart.",
+      "Push against the foot platform to extend your legs and straighten your knees.",
+      "Pause for a moment at the end of the movement, then slowly bend your knees to return to the starting position.",
+      "Repeat for the desired number of repetitions."
+    ],
+    "category": "legs",
+    "images": [
+      "0740-tj41Nu6.jpg"
+    ],
+    "gifUrl": "https://raw.githubusercontent.com/hasaneyldrm/exercises-dataset/main/videos/0740-tj41Nu6.gif",
+    "bodyPart": "upper legs"
   }
 ]

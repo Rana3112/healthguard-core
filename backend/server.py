@@ -662,6 +662,8 @@ def search_exercises_from_db(query, limit=10):
         "abs": ["abdominals", "abs", "core", "obliques", "waist"],
         "abdominal": ["abdominals", "abs", "core", "obliques", "waist"],
         "core": ["abdominals", "abs", "core", "obliques", "waist"],
+        "stomach": ["abdominals", "abs", "core", "obliques", "waist"],
+        "belly": ["abdominals", "abs", "core", "obliques", "waist"],
         "chest": ["pectorals", "chest", "pectoralis"],
         "pecs": ["pectorals", "chest", "pectoralis"],
         "back": [
@@ -684,14 +686,31 @@ def search_exercises_from_db(query, limit=10):
             "adductors",
             "abductors",
         ],
+        "leg": [
+            "quadriceps",
+            "hamstrings",
+            "glutes",
+            "calves",
+            "adductors",
+            "abductors",
+        ],
+        "thigh": ["quadriceps", "hamstrings", "adductors"],
+        "thighs": ["quadriceps", "hamstrings", "adductors"],
         "quads": ["quadriceps", "quad"],
-        "hamstrings": ["hamstrings", "hamstring"],
+        "quad": ["quadriceps"],
+        "hamstring": ["hamstrings"],
+        "hamstrings": ["hamstrings"],
         "glutes": ["glutes", "gluteus", "butt"],
+        "butt": ["glutes", "gluteus"],
         "calves": ["calves", "calf"],
+        "calf": ["calves"],
         "arms": ["biceps", "triceps", "forearms"],
         "forearms": ["forearms", "forearm"],
         "neck": ["neck"],
         "traps": ["trapezius", "traps"],
+        "trapezius": ["trapezius", "traps"],
+        "lower back": ["lower back"],
+        "upper back": ["upper back"],
     }
 
     # Check for muscle group keywords
@@ -699,6 +718,9 @@ def search_exercises_from_db(query, limit=10):
     for keyword, muscles in muscle_keywords.items():
         if keyword in query_lower:
             target_muscles.extend(muscles)
+
+    # Remove duplicates
+    target_muscles = list(set(target_muscles))
 
     # If no specific muscle found, try to match exercise names
     if not target_muscles:
@@ -708,6 +730,24 @@ def search_exercises_from_db(query, limit=10):
                 if len(results) >= limit:
                     break
         return results[:limit]
+
+    # Search by muscle groups
+    for ex in LOCAL_EXERCISES:
+        ex_muscles = [m.lower() for m in (ex.get("primaryMuscles") or [])]
+        ex_secondary = [m.lower() for m in (ex.get("secondaryMuscles") or [])]
+        all_muscles = ex_muscles + ex_secondary
+
+        # Check if any target muscle matches
+        for target in target_muscles:
+            if any(target in muscle for muscle in all_muscles):
+                if ex not in results:
+                    results.append(ex)
+                break
+
+        if len(results) >= limit:
+            break
+
+    return results[:limit]
 
     # Search by muscle groups
     for ex in LOCAL_EXERCISES:

@@ -287,20 +287,20 @@ HealthGuard-AI/
 
 ---
 
-## UI Showcase
+## App Screenshots
 
-### Main Interface
-![Main UI](landing%20page%20ui%20design%20reference/main%20ui/screen.png)
-![Main UI 2](landing%20page%20ui%20design%20reference/main%20ui%202/screen.png)
+<div align="center">
 
-### Features & Overview
-![Page 1](landing%20page%20ui%20design%20reference/page%201/screen.png)
-![Page 2](landing%20page%20ui%20design%20reference/page%202/screen.png)
-![Page 3](landing%20page%20ui%20design%20reference/page%203/screen.png)
+### AI Health Chat & Fitness Hub
+![HealthGuard AI Screenshots](android-mockups/screen1.png)
 
-### Authentication
-![Login 1](landing%20page%20ui%20design%20reference/login%201/screen.png)
-![Login 2](landing%20page%20ui%20design%20reference/login%202/screen.png)
+### Health Dashboard & Medicine Finder
+![HealthGuard AI Features](android-mockups/screen2.png)
+
+### All Features Overview
+![HealthGuard AI Overview](android-mockups/screen3.png)
+
+</div>
 
 ---
 

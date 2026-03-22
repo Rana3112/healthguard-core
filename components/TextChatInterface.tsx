@@ -9,8 +9,6 @@ import { runClinicalGraphTurn } from '../src/agents/clinicalGraph';
 import { clearSession } from '../src/agents/patientSession';
 import { getBackendUrl } from '../src/lib/backendUrl';
 import { requestMicrophoneWithSettingsPrompt, isMicrophoneSupported } from '../src/lib/permissions';
-import { useCredits } from '../src/context/CreditsContext';
-import UpgradeModal from './UpgradeModal';
 
 const DIAGNOSIS_HEADERS = [
   'Aapki Taklif',
@@ -442,9 +440,7 @@ const TextChatInterface: React.FC<TextChatInterfaceProps> = ({ dispatch, message
     rootQuery: '',
     selectedCards: []
   });
-  const { user } = useAuth();
-  const { credits, isPro, checkAccess } = useCredits();
-  const [upgradeFeature, setUpgradeFeature] = useState('');
+  const { user, isPro } = useAuth();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -1553,13 +1549,6 @@ Keep responses concise and actionable.`;
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Upgrade Modal */}
-      <UpgradeModal 
-        isOpen={showUpgradeModal}
-        onClose={() => setShowUpgradeModal(false)}
-        feature={upgradeFeature}
-      />
-
       {/* Sticky Input Area */}
       <div className={`p-4 backdrop-blur-md border-t border-slate-100 transition-colors ${modelMode === 'agent' ? 'bg-purple-50/80' : 'bg-white/80'}`}>
         <div className="max-w-4xl mx-auto">
@@ -1612,46 +1601,17 @@ Keep responses concise and actionable.`;
               <button onClick={() => setModelMode('standard')} className={`flex-none snap-start min-w-[90px] flex items-center justify-center gap-1 px-3 py-1.5 rounded-full text-[10px] sm:text-[11px] font-medium transition-all whitespace-nowrap ${modelMode === 'standard' ? 'bg-teal-50 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400 border border-teal-200 dark:border-teal-800 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-transparent'}`}>
                 <Sparkles className={`w-3 h-3 flex-shrink-0 ${modelMode === 'standard' ? 'text-teal-500' : ''}`} /> Standard
               </button>
-              <button 
-                onClick={() => {
-                  if (isPro || credits >= 5) {
-                    setModelMode('thinking');
-                  } else {
-                    setUpgradeFeature('deep_think');
-                    setShowUpgradeModal(true);
-                  }
-                }} 
-                className={`flex-none snap-start min-w-[78px] flex items-center justify-center gap-1 px-3 py-1.5 rounded-full text-[10px] sm:text-[11px] font-medium transition-all whitespace-nowrap relative ${modelMode === 'thinking' ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-transparent'}`}
-              >
+              <button onClick={() => setModelMode('thinking')} className={`flex-none snap-start min-w-[78px] flex items-center justify-center gap-1 px-3 py-1.5 rounded-full text-[10px] sm:text-[11px] font-medium transition-all whitespace-nowrap ${modelMode === 'thinking' ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-transparent'}`}>
                 <BrainCircuit className={`w-3 h-3 flex-shrink-0 ${modelMode === 'thinking' ? 'text-indigo-500' : ''}`} /> Deep
-                {!isPro && <Lock className="w-2 h-2 ml-0.5 text-slate-400 flex-shrink-0" />}
               </button>
-              <button 
-                onClick={() => {
-                  if (isPro || credits >= 10) {
-                    setModelMode('max_deep_think');
-                  } else {
-                    setUpgradeFeature('max_deep_think');
-                    setShowUpgradeModal(true);
-                  }
-                }} 
-                className={`flex-none snap-start min-w-[78px] flex items-center justify-center gap-1 px-3 py-1.5 rounded-full text-[10px] sm:text-[11px] font-medium transition-all whitespace-nowrap relative ${modelMode === 'max_deep_think' ? 'bg-slate-800 text-white border border-slate-700 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-transparent'}`}
-              >
+              <button onClick={() => setModelMode('max_deep_think')} className={`flex-none snap-start min-w-[78px] flex items-center justify-center gap-1 px-3 py-1.5 rounded-full text-[10px] sm:text-[11px] font-medium transition-all whitespace-nowrap ${modelMode === 'max_deep_think' ? 'bg-slate-800 text-white border border-slate-700 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-transparent'}`}>
                 <Activity className={`w-3 h-3 flex-shrink-0 ${modelMode === 'max_deep_think' ? 'text-teal-400' : ''}`} /> Max
-                {!isPro && <Lock className="w-2 h-2 ml-0.5 text-slate-400 flex-shrink-0" />}
               </button>
               <button onClick={() => setModelMode('vision')} className={`flex-none snap-start min-w-[82px] flex items-center justify-center gap-1 px-3 py-1.5 rounded-full text-[10px] sm:text-[11px] font-medium transition-all whitespace-nowrap ${modelMode === 'vision' ? 'bg-fuchsia-50 dark:bg-fuchsia-900/30 text-fuchsia-600 dark:text-fuchsia-400 border border-fuchsia-200 dark:border-fuchsia-800 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-transparent'}`}>
                 <Eye className={`w-3 h-3 flex-shrink-0 ${modelMode === 'vision' ? 'text-fuchsia-500' : ''}`} /> Vision
               </button>
               <button
-                onClick={() => {
-                  if (isPro || credits >= 5) {
-                    setModelMode('agent');
-                  } else {
-                    setUpgradeFeature('agent_mode');
-                    setShowUpgradeModal(true);
-                  }
-                }}
+                onClick={() => isPro ? setModelMode('agent') : setShowUpgradeModal(true)}
                 className={`flex-none snap-start min-w-[84px] flex items-center justify-center gap-1 px-3 py-1.5 rounded-full text-[10px] sm:text-[11px] font-medium transition-all whitespace-nowrap relative ${modelMode === 'agent' ? 'bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-transparent'}`}
               >
                 <Bot className={`w-3 h-3 flex-shrink-0 ${modelMode === 'agent' ? 'text-rose-500' : ''}`} />

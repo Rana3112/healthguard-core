@@ -3,7 +3,6 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import LandingPage from './pages/LandingPage';
 import AuthPage from './pages/AuthPage';
 import { AuthProvider } from './context/AuthContext';
-import { CreditsProvider } from './context/CreditsContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import { requestAllPermissions, isNativePlatform } from './lib/permissions';
 
@@ -82,24 +81,22 @@ const App: React.FC = () => {
   return (
     <ErrorBoundary>
       <AuthProvider>
-        <CreditsProvider>
-          <Router>
-            <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-slate-50 text-slate-600">Loading...</div>}>
-              <Routes>
-                <Route path="/" element={<LandingPage />} />
-                <Route path="/login" element={<AuthPage />} />
-                <Route path="/signup" element={<AuthPage />} />
-                <Route path="/app" element={
-                  <ProtectedRoute>
-                    <Dashboard />
-                  </ProtectedRoute>
-                } />
-                {/* Fallback to Landing Page */}
-                <Route path="*" element={<Navigate to="/" replace />} />
-              </Routes>
-            </Suspense>
-          </Router>
-        </CreditsProvider>
+        <Router>
+          <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-slate-50 text-slate-600">Loading...</div>}>
+            <Routes>
+              <Route path="/" element={<LandingPage />} />
+              <Route path="/login" element={<AuthPage />} />
+              <Route path="/signup" element={<AuthPage />} />
+              <Route path="/app" element={
+                <ProtectedRoute>
+                  <Dashboard />
+                </ProtectedRoute>
+              } />
+              {/* Fallback to Landing Page */}
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </Suspense>
+        </Router>
       </AuthProvider>
     </ErrorBoundary>
   );

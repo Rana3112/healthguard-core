@@ -10,8 +10,6 @@ import Sidebar from '../../components/Sidebar';
 import SettingsPanel from '../../components/SettingsPanel';
 import NotificationPanel from '../../components/NotificationPanel';
 import PermissionPrompt from '../../components/PermissionPrompt';
-import CreditDisplay from '../../components/CreditDisplay';
-import UpgradeModal from '../../components/UpgradeModal';
 
 import { applyTheme, getStoredTheme } from '../../components/SettingsPanel';
 import { useChatHistory } from '../../hooks/useChatHistory';
@@ -19,7 +17,6 @@ import { useNavigate } from 'react-router-dom';
 import { Menu, Zap, Sparkles, BrainCircuit, Eye, Settings, Bell, Bot, LogOut, Dumbbell, Heart, Pill, Lock, ShieldCheck, ArrowLeft } from 'lucide-react';
 import { ModelMode } from '../../services/geminiService';
 import { useAuth } from '../context/AuthContext';
-import { useCredits } from '../context/CreditsContext';
 import { getBackendUrl } from '../lib/backendUrl';
 import { hasRequestedPermissionsBefore, markPermissionsRequested } from '../lib/permissions';
 import { startHealthMonitor, stopHealthMonitor } from '../services/serverHealth';
@@ -116,16 +113,10 @@ const Dashboard: React.FC = () => {
     const [activeResizer, setActiveResizer] = useState<'left' | 'right' | null>(null);
     const [showPermPrompt, setShowPermPrompt] = useState(false);
     const [serverStatus, setServerStatus] = useState<'online' | 'offline' | 'checking'>('online');
-    const [showUpgradeModal, setShowUpgradeModal] = useState(false);
-    const [upgradeFeature, setUpgradeFeature] = useState('');
 
     const rootLayoutRef = useRef<HTMLDivElement>(null);
-    const { user, isPro: authIsPro } = useAuth();
-    const { credits, isPro: creditsIsPro, setShowUpgradeModal: setCreditsUpgradeModal, setUpgradeFeature: setCreditsUpgradeFeature } = useCredits();
+    const { user, isPro } = useAuth();
     const navigate = useNavigate();
-
-    // Combined isPro status
-    const isPro = authIsPro || creditsIsPro;
 
     useEffect(() => { applyTheme(getStoredTheme()); }, []);
 
@@ -287,7 +278,12 @@ const Dashboard: React.FC = () => {
 
                     {/* Right Actions */}
                     <div className="flex items-center gap-3 relative">
-                        <CreditDisplay onUpgrade={() => setShowUpgradeModal(true)} />
+                        <button
+                            onClick={() => setActiveRightSidebar(!activeRightSidebar)}
+                            className="text-slate-400 hover:text-teal-600 dark:text-slate-500 dark:hover:text-teal-400 transition-colors p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800"
+                        >
+                            <Dumbbell className="w-5 h-5" />
+                        </button>
                         <button
                             onClick={(e) => { e.stopPropagation(); setShowNotifications(!showNotifications); }}
                             className="relative text-slate-400 hover:text-teal-600 dark:text-slate-500 dark:hover:text-teal-400 transition-colors p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800"
@@ -299,12 +295,6 @@ const Dashboard: React.FC = () => {
                             className="text-slate-400 hover:text-teal-600 dark:text-slate-500 dark:hover:text-teal-400 transition-colors p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800"
                         >
                             <Settings className="w-5 h-5" />
-                        </button>
-                        <button
-                            onClick={() => setActiveRightSidebar(!activeRightSidebar)}
-                            className="lg:hidden text-slate-400 hover:text-teal-600 dark:text-slate-500 dark:hover:text-teal-400 transition-colors p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800"
-                        >
-                            <Dumbbell className="w-5 h-5" />
                         </button>
                         <NotificationPanel isOpen={showNotifications} onClose={() => setShowNotifications(false)} />
                     </div>
@@ -409,13 +399,6 @@ const Dashboard: React.FC = () => {
 
             {/* Permission Prompt (shown once after login) */}
             {showPermPrompt && <PermissionPrompt onDone={handlePermsDone} />}
-
-            {/* Upgrade Modal */}
-            <UpgradeModal 
-                isOpen={showUpgradeModal} 
-                onClose={() => setShowUpgradeModal(false)} 
-                feature={upgradeFeature}
-            />
 
         </div>
     );

@@ -321,8 +321,16 @@ def _fetch_exercise_details(target):
                 break
 
         if match:
-            image_path = ex.get("images", [])[0] if ex.get("images") else None
-            gif_url = f"{IMAGE_BASE_URL}{image_path}" if image_path else None
+            # Get GIF URL - handle both formats
+            gif_url = None
+
+            # First check if exercise already has gifUrl field (new format)
+            if ex.get("gifUrl"):
+                gif_url = ex["gifUrl"]
+            # Otherwise, try to construct from images array (old format)
+            elif ex.get("images"):
+                image_path = ex["images"][0]
+                gif_url = f"{IMAGE_BASE_URL}{image_path}"
 
             candidates.append(
                 {
@@ -330,7 +338,7 @@ def _fetch_exercise_details(target):
                     "name": ex.get("name"),
                     "target": (ex.get("primaryMuscles") or ["unknown"])[0],
                     "equipment": ex.get("equipment"),
-                    "gifUrl": gif_url,
+                    "gifUrl": gif_url or "",
                     "instructions": ex.get("instructions", []),
                 }
             )
@@ -392,8 +400,16 @@ def get_exercises_by_target():
             continue
 
         # Construct response object
-        image_path = ex.get("images", [])[0] if ex.get("images") else None
-        gif_url = f"{IMAGE_BASE_URL}{image_path}" if image_path else None
+        # Get GIF URL - handle both formats
+        gif_url = None
+
+        # First check if exercise already has gifUrl field (new format)
+        if ex.get("gifUrl"):
+            gif_url = ex["gifUrl"]
+        # Otherwise, try to construct from images array (old format)
+        elif ex.get("images"):
+            image_path = ex["images"][0]
+            gif_url = f"{IMAGE_BASE_URL}{image_path}"
 
         results.append(
             {
@@ -402,7 +418,7 @@ def get_exercises_by_target():
                 "target": target,  # Use requested target for consistency
                 "bodyPart": ex.get("category", "strength"),
                 "equipment": ex.get("equipment"),
-                "gifUrl": gif_url,
+                "gifUrl": gif_url or "",
                 "secondaryMuscles": ex.get("secondaryMuscles", []),
                 "instructions": ex.get("instructions", []),
             }

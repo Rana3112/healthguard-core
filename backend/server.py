@@ -652,6 +652,132 @@ def generate_workout():
         return jsonify({"error": str(e)}), 500
 
 
+def search_exercises_from_db(query, limit=10):
+    """Search exercises from local database based on query."""
+    query_lower = query.lower()
+    results = []
+
+    # Keywords to muscle mapping
+    muscle_keywords = {
+        "abs": ["abdominals", "abs", "core", "obliques", "waist"],
+        "abdominal": ["abdominals", "abs", "core", "obliques", "waist"],
+        "core": ["abdominals", "abs", "core", "obliques", "waist"],
+        "chest": ["pectorals", "chest", "pectoralis"],
+        "pecs": ["pectorals", "chest", "pectoralis"],
+        "back": [
+            "latissimus dorsi",
+            "lats",
+            "middle back",
+            "lower back",
+            "upper back",
+            "traps",
+        ],
+        "lats": ["latissimus dorsi", "lats"],
+        "biceps": ["biceps", "bicep"],
+        "triceps": ["triceps", "tricep"],
+        "shoulders": ["shoulders", "deltoids", "delts"],
+        "legs": [
+            "quadriceps",
+            "hamstrings",
+            "glutes",
+            "calves",
+            "adductors",
+            "abductors",
+        ],
+        "quads": ["quadriceps", "quad"],
+        "hamstrings": ["hamstrings", "hamstring"],
+        "glutes": ["glutes", "gluteus", "butt"],
+        "calves": ["calves", "calf"],
+        "arms": ["biceps", "triceps", "forearms"],
+        "forearms": ["forearms", "forearm"],
+        "neck": ["neck"],
+        "traps": ["trapezius", "traps"],
+    }
+
+    # Check for muscle group keywords
+    target_muscles = []
+    for keyword, muscles in muscle_keywords.items():
+        if keyword in query_lower:
+            target_muscles.extend(muscles)
+
+    # If no specific muscle found, try to match exercise names
+    if not target_muscles:
+        for ex in LOCAL_EXERCISES:
+            if query_lower in ex.get("name", "").lower():
+                results.append(ex)
+                if len(results) >= limit:
+                    break
+        return results[:limit]
+
+    # Search by muscle groups
+    for ex in LOCAL_EXERCISES:
+        ex_muscles = [m.lower() for m in (ex.get("primaryMuscles") or [])]
+        ex_secondary = [m.lower() for m in (ex.get("secondaryMuscles") or [])]
+        all_muscles = ex_muscles + ex_secondary
+
+        # Check if any target muscle matches
+        for target in target_muscles:
+            if any(target in muscle for muscle in all_muscles):
+                if ex not in results:
+                    results.append(ex)
+                break
+
+        if len(results) >= limit:
+            break
+
+    return results[:limit]
+
+
+@app.route("/api/search-exercises", methods=["POST"])
+def search_exercises():
+    """Search exercises from local database."""
+    data = request.json
+    query = data.get("query", "")
+    limit = data.get("limit", 10)
+
+    if not query:
+        return jsonify({"error": "Query required"}), 400
+
+    try:
+        exercises = search_exercises_from_db(query, limit)
+
+        # Format exercises for frontend
+        formatted_exercises = []
+        for ex in exercises:
+            # Get GIF URL
+            gif_url = None
+            if ex.get("gifUrl"):
+                gif_url = ex["gifUrl"]
+            elif ex.get("images"):
+                image_path = ex["images"][0]
+                gif_url = f"{IMAGE_BASE_URL}{image_path}"
+
+            formatted_exercises.append(
+                {
+                    "id": ex.get("id"),
+                    "name": ex.get("name"),
+                    "target": (ex.get("primaryMuscles") or ["unknown"])[0],
+                    "equipment": ex.get("equipment"),
+                    "gifUrl": gif_url or "",
+                    "instructions": ex.get("instructions", []),
+                    "secondaryMuscles": ex.get("secondaryMuscles", []),
+                }
+            )
+
+        return jsonify(
+            {
+                "success": True,
+                "exercises": formatted_exercises,
+                "query": query,
+                "count": len(formatted_exercises),
+            }
+        )
+
+    except Exception as e:
+        print(f"[Search] Error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/coach/chat", methods=["POST"])
 def coach_chat():
     """Chat with the AI Coach about the workout plan."""
@@ -667,6 +793,83 @@ def coach_chat():
     if not message:
         return jsonify({"error": "Message required"}), 400
 
+    # Check if user is asking for exercise suggestions
+    exercise_keywords = [
+        "exercise",
+        "exercises",
+        "suggest",
+        "recommend",
+        "give me",
+        "show me",
+        "what exercises",
+        "abs exercise",
+        "leg exercise",
+        "chest exercise",
+        "back exercise",
+        "shoulder exercise",
+        "bicep exercise",
+        "tricep exercise",
+        "abdominal exercise",
+        "core exercise",
+        "workout",
+        "routine",
+        "movement",
+    ]
+
+    message_lower = message.lower()
+    is_exercise_query = any(keyword in message_lower for keyword in exercise_keywords)
+
+    # If asking for exercises, search the database
+    if is_exercise_query:
+        try:
+            # Search for exercises
+            exercises = search_exercises_from_db(message, limit=8)
+
+            if exercises:
+                # Format exercises for frontend
+                formatted_exercises = []
+                for ex in exercises:
+                    # Get GIF URL
+                    gif_url = None
+                    if ex.get("gifUrl"):
+                        gif_url = ex["gifUrl"]
+                    elif ex.get("images"):
+                        image_path = ex["images"][0]
+                        gif_url = f"{IMAGE_BASE_URL}{image_path}"
+
+                    formatted_exercises.append(
+                        {
+                            "id": ex.get("id"),
+                            "name": ex.get("name"),
+                            "target": (ex.get("primaryMuscles") or ["unknown"])[0],
+                            "equipment": ex.get("equipment"),
+                            "gifUrl": gif_url or "",
+                            "instructions": ex.get("instructions", []),
+                            "secondaryMuscles": ex.get("secondaryMuscles", []),
+                            "sets": 3,
+                            "reps": "10-12",
+                            "rest_seconds": 60,
+                        }
+                    )
+
+                # Create a response with exercise suggestions
+                reply = f"Here are some exercises I found for you based on your query. These are from our exercise database with over 2,000 exercises. I've selected the most relevant ones:"
+
+                return jsonify(
+                    {
+                        "reply": reply,
+                        "exercises": formatted_exercises,
+                        "is_exercise_response": True,
+                    }
+                )
+            else:
+                # No exercises found, use LLM response
+                pass
+
+        except Exception as e:
+            print(f"[Coach Chat] Exercise search error: {e}")
+            # Fall through to LLM response
+
     try:
         import requests as req
 
@@ -681,6 +884,8 @@ def coach_chat():
         If they ask about an exercise in the plan, explain form or benefits.
         If they ask about diet, give general advice based on their goal.
         Keep answers concise (max 3-4 sentences unless detailed explanation needed).
+        
+        If they ask for exercise suggestions, you can mention that I have a database of over 2,000 exercises that I can search for them. Just say "I can search our exercise database for that. What specific muscle group or type of exercise are you looking for?"
         """
 
         messages = [{"role": "system", "content": context}]

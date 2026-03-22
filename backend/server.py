@@ -970,9 +970,14 @@ def coach_chat():
 
 @app.route("/api/transcribe", methods=["POST"])
 def transcribe_audio():
-    """Transcribe audio using Groq's Whisper API."""
-    if not groq_api_key:
-        return jsonify({"error": "GROQ_API_KEY not configured"}), 500
+    """Transcribe audio using NVIDIA's Whisper Large V3 API."""
+    nvidia_whisper_key = os.getenv(
+        "NVIDIA_WHISPER_API_KEY",
+        "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",
+    )
+
+    if not nvidia_whisper_key:
+        return jsonify({"error": "NVIDIA_WHISPER_API_KEY not configured"}), 500
 
     if "audio" not in request.files:
         return jsonify({"error": "No audio file provided"}), 400
@@ -985,22 +990,30 @@ def transcribe_audio():
     try:
         import requests as req
 
-        url = "https://api.groq.com/openai/v1/audio/transcriptions"
-        headers = {"Authorization": f"Bearer {groq_api_key}"}
+        # NVIDIA NeMo Whisper API endpoint
+        url = "https://integrate.api.nvidia.com/v1/audio/transcriptions"
+        headers = {"Authorization": f"Bearer {nvidia_whisper_key}"}
 
-        # Groq expects a file tuple: (filename, file_object, content_type)
+        # NVIDIA expects a file tuple: (filename, file_object, content_type)
         files = {"file": (audio_file.filename, audio_file.read(), audio_file.mimetype)}
-        data = {"model": "whisper-large-v3", "response_format": "json"}
+        data = {
+            "model": "nvidia/whisper-large-v3",
+            "response_format": "json",
+            "language": "en",  # Can be made configurable
+            "temperature": 0.0,
+        }
 
-        resp = req.post(url, headers=headers, files=files, data=data, timeout=30)
+        print(f"[Transcribe] Sending audio to NVIDIA Whisper API...")
+        resp = req.post(url, headers=headers, files=files, data=data, timeout=60)
 
         if resp.status_code != 200:
-            print(f"[Transcribe] Error from Groq: {resp.text}")
+            print(f"[Transcribe] Error from NVIDIA: {resp.text}")
             return jsonify({"error": f"Transcription Error: {resp.text}"}), 500
 
         transcription_data = resp.json()
         text = transcription_data.get("text", "")
 
+        print(f"[Transcribe] Success: {text[:50]}...")
         return jsonify({"text": text.strip()})
 
     except Exception as e:

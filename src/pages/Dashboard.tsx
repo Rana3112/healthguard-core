@@ -9,12 +9,20 @@ import AgentActivityMonitor from '../../components/AgentActivityMonitor';
 import Sidebar from '../../components/Sidebar';
 import SettingsPanel from '../../components/SettingsPanel';
 import NotificationPanel from '../../components/NotificationPanel';
+import PermissionPrompt from '../../components/PermissionPrompt';
+import CreditDisplay from '../../components/CreditDisplay';
+import UpgradeModal from '../../components/UpgradeModal';
+
 import { applyTheme, getStoredTheme } from '../../components/SettingsPanel';
 import { useChatHistory } from '../../hooks/useChatHistory';
 import { useNavigate } from 'react-router-dom';
-import { Menu, Zap, Sparkles, BrainCircuit, Eye, Settings, Bell, Bot, LogOut, Dumbbell, Heart, Pill, Lock, ShieldCheck } from 'lucide-react';
+import { Menu, Zap, Sparkles, BrainCircuit, Eye, Settings, Bell, Bot, LogOut, Dumbbell, Heart, Pill, Lock, ShieldCheck, ArrowLeft } from 'lucide-react';
 import { ModelMode } from '../../services/geminiService';
 import { useAuth } from '../context/AuthContext';
+import { useCredits } from '../context/CreditsContext';
+import { getBackendUrl } from '../lib/backendUrl';
+import { hasRequestedPermissionsBefore, markPermissionsRequested } from '../lib/permissions';
+import { startHealthMonitor, stopHealthMonitor } from '../services/serverHealth';
 
 const initialState: AgentState = {
     orders: [],
@@ -104,14 +112,44 @@ const Dashboard: React.FC = () => {
     const [showNotifications, setShowNotifications] = useState(false);
     const [pendingQuickTool, setPendingQuickTool] = useState<string | null>(null);
     const [leftPanelWidth, setLeftPanelWidth] = useState<number>(() => getStoredPanelWidth('hg_left_panel_width', 288));
-    const [rightPanelWidth, setRightPanelWidth] = useState<number>(() => getStoredPanelWidth('hg_right_panel_width', 420));
+    const [rightPanelWidth, setRightPanelWidth] = useState<number>(() => getStoredPanelWidth('hg_right_panel_width', 450));
     const [activeResizer, setActiveResizer] = useState<'left' | 'right' | null>(null);
+    const [showPermPrompt, setShowPermPrompt] = useState(false);
+    const [serverStatus, setServerStatus] = useState<'online' | 'offline' | 'checking'>('online');
+    const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+    const [upgradeFeature, setUpgradeFeature] = useState('');
 
     const rootLayoutRef = useRef<HTMLDivElement>(null);
-    const { user, isPro } = useAuth();
+    const { user, isPro: authIsPro } = useAuth();
+    const { credits, isPro: creditsIsPro, setShowUpgradeModal: setCreditsUpgradeModal, setUpgradeFeature: setCreditsUpgradeFeature } = useCredits();
     const navigate = useNavigate();
 
+    // Combined isPro status
+    const isPro = authIsPro || creditsIsPro;
+
     useEffect(() => { applyTheme(getStoredTheme()); }, []);
+
+    // Start server health monitoring
+    useEffect(() => {
+        startHealthMonitor((status) => {
+            setServerStatus(status);
+        });
+        return () => stopHealthMonitor();
+    }, []);
+
+    // Show permission prompt after first login
+    useEffect(() => {
+        if (user && !hasRequestedPermissionsBefore()) {
+            // Small delay so the dashboard renders first
+            const timer = setTimeout(() => setShowPermPrompt(true), 1500);
+            return () => clearTimeout(timer);
+        }
+    }, [user]);
+
+    const handlePermsDone = () => {
+        markPermissionsRequested();
+        setShowPermPrompt(false);
+    };
 
     const {
         sessions,
@@ -249,6 +287,7 @@ const Dashboard: React.FC = () => {
 
                     {/* Right Actions */}
                     <div className="flex items-center gap-3 relative">
+                        <CreditDisplay onUpgrade={() => setShowUpgradeModal(true)} />
                         <button
                             onClick={(e) => { e.stopPropagation(); setShowNotifications(!showNotifications); }}
                             className="relative text-slate-400 hover:text-teal-600 dark:text-slate-500 dark:hover:text-teal-400 transition-colors p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800"
@@ -305,12 +344,20 @@ const Dashboard: React.FC = () => {
 
             {/* Right Sidebar: Fitness Panel / Health Dashboard */}
             <aside className={`
-                fixed inset-y-0 right-0 w-[420px] lg:w-[var(--right-panel-width)] bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 z-30 transform transition-transform duration-300
-                lg:relative lg:transform-none lg:block
+                fixed inset-y-0 right-0 left-0 w-full lg:left-auto lg:w-[var(--right-panel-width)] bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 z-30 transform transition-transform duration-300 flex flex-col
+                lg:relative lg:transform-none lg:block px-4 lg:px-0
                 ${activeRightSidebar ? 'translate-x-0' : 'translate-x-full lg:translate-x-0'}
             `} style={{ ['--right-panel-width' as any]: `${rightPanelWidth}px` }}>
-                {/* Panel Tabs */}
+                {/* Mobile Back Button + Panel Tabs */}
                 <div className="p-2.5 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 shrink-0">
+                    {/* Back Button - Mobile Only */}
+                    <button
+                        onClick={() => setActiveRightSidebar(false)}
+                        className="lg:hidden flex items-center gap-2 mb-2 px-2 py-1.5 text-slate-500 hover:text-teal-600 dark:text-slate-400 dark:hover:text-teal-400 transition-colors rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800"
+                    >
+                        <ArrowLeft className="w-4 h-4" />
+                        <span className="text-xs font-semibold">Back to Chat</span>
+                    </button>
                     <div className="flex bg-slate-100 dark:bg-slate-800/60 rounded-full p-1">
                         <button
                             onClick={() => setRightPanel('fitness')}
@@ -339,36 +386,7 @@ const Dashboard: React.FC = () => {
                     </div>
                 </div>
                 {/* Panel Content */}
-                <div className="flex-1 overflow-hidden relative" style={{ height: 'calc(100% - 52px)' }}>
-                    {rightPanel === 'fitness' && !isPro ? (
-                        <div className="absolute inset-0 bg-slate-50/90 dark:bg-slate-900/90 backdrop-blur-sm z-10 flex flex-col items-center justify-center p-8 text-center">
-                            <div className="w-16 h-16 bg-violet-100 dark:bg-violet-900/30 rounded-3xl flex items-center justify-center mb-6 shadow-xl shadow-violet-500/10">
-                                <Lock className="w-8 h-8 text-violet-600 dark:text-violet-400" />
-                            </div>
-                            <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-3">Premium Fitness Suite</h3>
-                            <p className="text-slate-500 dark:text-slate-400 text-sm mb-8 leading-relaxed max-w-xs">
-                                Get access to the **Personalized AI Fitness Coach**, custom workout plans, and exercise tracking.
-                            </p>
-                            <button
-                                onClick={async () => {
-                                    try {
-                                        const BACKEND_URL = (import.meta as any).env?.VITE_BACKEND_URL || 'http://localhost:5001';
-                                        const response = await fetch(`${BACKEND_URL}/api/create-checkout-session`, {
-                                            method: 'POST',
-                                            headers: { 'Content-Type': 'application/json' },
-                                            body: JSON.stringify({ userId: user?.uid, email: user?.email })
-                                        });
-                                        const data = await response.json();
-                                        if (data.url) window.location.href = data.url;
-                                    } catch (e) { console.error(e); }
-                                }}
-                                className="w-full py-3.5 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 text-white font-bold rounded-2xl shadow-lg shadow-purple-500/20 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
-                            >
-                                <ShieldCheck className="w-5 h-5" /> Upgrade to Pro
-                            </button>
-                        </div>
-                    ) : null}
-
+                <div className="flex-1 overflow-hidden relative min-h-0">
                     {rightPanel === 'fitness' ? <FitnessPanel /> : rightPanel === 'health' ? <HealthDashboard /> : <DrugInteractionChecker />}
                 </div>
             </aside>
@@ -388,6 +406,16 @@ const Dashboard: React.FC = () => {
 
             {/* Settings Panel */}
             <SettingsPanel isOpen={showSettings} onClose={() => setShowSettings(false)} />
+
+            {/* Permission Prompt (shown once after login) */}
+            {showPermPrompt && <PermissionPrompt onDone={handlePermsDone} />}
+
+            {/* Upgrade Modal */}
+            <UpgradeModal 
+                isOpen={showUpgradeModal} 
+                onClose={() => setShowUpgradeModal(false)} 
+                feature={upgradeFeature}
+            />
 
         </div>
     );

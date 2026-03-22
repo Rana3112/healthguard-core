@@ -1,9 +1,11 @@
-import React, { Suspense, Component, ErrorInfo, ReactNode } from 'react';
+import React, { Suspense, Component, ErrorInfo, ReactNode, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import LandingPage from './pages/LandingPage';
 import AuthPage from './pages/AuthPage';
 import { AuthProvider } from './context/AuthContext';
+import { CreditsProvider } from './context/CreditsContext';
 import ProtectedRoute from './components/ProtectedRoute';
+import { requestAllPermissions, isNativePlatform } from './lib/permissions';
 
 const Dashboard = React.lazy(() => import('./pages/Dashboard'));
 
@@ -60,25 +62,44 @@ class ErrorBoundary extends Component<{ children: ReactNode }, ErrorBoundaryStat
 }
 
 const App: React.FC = () => {
+  // Request permissions on app startup (Android/iOS)
+  useEffect(() => {
+    const initializePermissions = async () => {
+      if (isNativePlatform()) {
+        console.log('[App] Requesting permissions on startup...');
+        try {
+          const permissions = await requestAllPermissions();
+          console.log('[App] Permission status:', permissions);
+        } catch (error) {
+          console.error('[App] Error requesting permissions:', error);
+        }
+      }
+    };
+
+    initializePermissions();
+  }, []);
+
   return (
     <ErrorBoundary>
       <AuthProvider>
-        <Router>
-          <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-slate-50 text-slate-600">Loading...</div>}>
-            <Routes>
-              <Route path="/" element={<LandingPage />} />
-              <Route path="/login" element={<AuthPage />} />
-              <Route path="/signup" element={<AuthPage />} />
-              <Route path="/app" element={
-                <ProtectedRoute>
-                  <Dashboard />
-                </ProtectedRoute>
-              } />
-              {/* Fallback to Landing Page */}
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-          </Suspense>
-        </Router>
+        <CreditsProvider>
+          <Router>
+            <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-slate-50 text-slate-600">Loading...</div>}>
+              <Routes>
+                <Route path="/" element={<LandingPage />} />
+                <Route path="/login" element={<AuthPage />} />
+                <Route path="/signup" element={<AuthPage />} />
+                <Route path="/app" element={
+                  <ProtectedRoute>
+                    <Dashboard />
+                  </ProtectedRoute>
+                } />
+                {/* Fallback to Landing Page */}
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Routes>
+            </Suspense>
+          </Router>
+        </CreditsProvider>
       </AuthProvider>
     </ErrorBoundary>
   );

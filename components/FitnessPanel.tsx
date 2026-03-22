@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Dumbbell, Filter, ChevronDown, ChevronUp, Loader2, AlertCircle, Search, X, Flame, Heart, PlayCircle, Apple, Scale, Ruler, Download, Sparkles, Send, FileText, ArrowLeft, Bot, Activity, Image as ImageIcon } from 'lucide-react';
+import { Dumbbell, Filter, ChevronDown, ChevronUp, Loader2, AlertCircle, Search, X, Flame, Heart, PlayCircle, Apple, Scale, Ruler, Download, Sparkles, Send, FileText, ArrowLeft, Bot, Activity, Image as ImageIcon, Clock } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
+import RichMessageRenderer from './RichMessageRenderer';
 import { sendMessageToAgent } from '../services/geminiService';
 import { generateCardFromGraphSignal } from '../services/followUpGenerator';
 import { retrieveVitalsForFitness } from '../services/vitalsRAG';
@@ -13,6 +12,37 @@ import Model from 'react-body-highlighter';
 import { getBackendUrl } from '../src/lib/backendUrl';
 
 const BACKEND_URL = getBackendUrl();
+
+// Helper function to detect exercise queries
+const isExerciseQuery = (message: string): boolean => {
+    const exerciseKeywords = [
+        'exercise', 'exercises', 'suggest', 'recommend', 'give me',
+        'show me', 'what exercises', 'abs exercise', 'leg exercise',
+        'chest exercise', 'back exercise', 'shoulder exercise',
+        'bicep exercise', 'tricep exercise', 'abdominal exercise',
+        'core exercise', 'workout', 'routine', 'movement',
+        'leg workout', 'abs workout', 'chest workout', 'back workout'
+    ];
+    const messageLower = message.toLowerCase();
+    return exerciseKeywords.some(keyword => messageLower.includes(keyword));
+};
+
+// Helper function to search exercises from backend
+const searchExercisesFromDB = async (query: string, limit: number = 8) => {
+    try {
+        const response = await fetch(`${BACKEND_URL}/api/search-exercises`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ query, limit })
+        });
+        const data = await response.json();
+        return data.exercises || [];
+    } catch (error) {
+        console.error('Exercise search error:', error);
+        return [];
+    }
+};
+
 const mapTargetToMuscle = (target: string): { muscles: string[], type: 'anterior' | 'posterior' } => {
     const t = target.toLowerCase();
     const mapping: Record<string, { muscles: string[], type: 'anterior' | 'posterior' }> = {
@@ -175,6 +205,48 @@ const FitnessPanel: React.FC = () => {
     // --- Workout Plan State (Local) ---
     const [workoutPlan, setWorkoutPlan] = useState<WorkoutPlan | null>(null);
 
+    // --- Plan & Chat History ---
+    const PLAN_HISTORY_KEY = 'fitness_plan_history';
+    const [planHistory, setPlanHistory] = useState<{ id: string; date: number; goal: string; days: number; plan: WorkoutPlan; chat: ChatMessage[] }[]>([]);
+
+    // Load history from localStorage
+    useEffect(() => {
+        try {
+            const raw = localStorage.getItem(PLAN_HISTORY_KEY);
+            if (raw) setPlanHistory(JSON.parse(raw));
+        } catch { }
+    }, []);
+
+    // Save plan + chat to history
+    const saveToHistory = (plan: WorkoutPlan, chat: ChatMessage[]) => {
+        const entry = {
+            id: Date.now().toString(),
+            date: Date.now(),
+            goal: plan.goal || 'Workout Plan',
+            days: plan.days?.length || 0,
+            plan,
+            chat: chat.filter(m => m.type === 'text'),
+        };
+        const updated = [entry, ...planHistory].slice(0, 10);
+        setPlanHistory(updated);
+        localStorage.setItem(PLAN_HISTORY_KEY, JSON.stringify(updated));
+    };
+
+    // Load a saved plan back into coach view
+    const loadFromHistory = (entry: { plan: WorkoutPlan; chat: ChatMessage[] }) => {
+        setWorkoutPlan(entry.plan);
+        setChatMessages(entry.chat);
+        setCoachStep('success');
+        setView('coach');
+    };
+
+    // Delete a history entry
+    const deleteFromHistory = (id: string) => {
+        const updated = planHistory.filter(h => h.id !== id);
+        setPlanHistory(updated);
+        localStorage.setItem(PLAN_HISTORY_KEY, JSON.stringify(updated));
+    };
+
     // --- Browse Mode State ---
     const [targets, setTargets] = useState<string[]>(FALLBACK_TARGETS);
     const [equipmentList, setEquipmentList] = useState<string[]>(FALLBACK_EQUIPMENT);
@@ -199,6 +271,7 @@ const FitnessPanel: React.FC = () => {
     const chatEndRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const workoutPlanCacheRef = useRef<Map<string, WorkoutPlan>>(new Map());
+    const [savedToast, setSavedToast] = useState(false);
 
     // Sync local plan view with global plan
     useEffect(() => {
@@ -313,14 +386,6 @@ const FitnessPanel: React.FC = () => {
     const generatePlan = async () => {
         if (!userStats.weight || !userStats.height) return;
 
-        const cacheKey = `${userStats.age}|${userStats.weight}|${userStats.height}|${userStats.diet}|${userStats.workoutIntensity}`;
-        const cachedPlan = workoutPlanCacheRef.current.get(cacheKey);
-        if (cachedPlan) {
-            setWorkoutPlan(cachedPlan);
-            setCoachStep('success');
-            return;
-        }
-
         setIsTyping(true);
 
         try {
@@ -347,7 +412,7 @@ const FitnessPanel: React.FC = () => {
             }
 
             const data = await res.json();
-            workoutPlanCacheRef.current.set(cacheKey, data);
+            // Generate a new plan each time - no caching
             setWorkoutPlan(data);
             setCoachStep('success');
         } catch (err: any) {
@@ -370,6 +435,58 @@ const FitnessPanel: React.FC = () => {
         setChatMessages(prev => [...prev, newUserMsg]);
         setIsTyping(true);
 
+        // Check if user is asking for exercise suggestions
+        if (isExerciseQuery(messageText)) {
+            try {
+                const exercises = await searchExercisesFromDB(messageText, 8);
+                
+                if (exercises && exercises.length > 0) {
+                    // Format exercises for display
+                    const formattedExercises = exercises.map((ex: any) => ({
+                        id: ex.id || `ex-${Date.now()}-${Math.random()}`,
+                        name: ex.name,
+                        target: ex.target,
+                        equipment: ex.equipment,
+                        sets: 3,
+                        reps: "10-12",
+                        rest_seconds: 60,
+                        instructions: ex.instructions || [],
+                        gifUrl: ex.gifUrl || "",
+                        secondaryMuscles: ex.secondaryMuscles || [],
+                    }));
+
+                    const aiMsg: ChatMessage = {
+                        role: 'assistant',
+                        content: `Here are some exercises I found for you from our database of over 2,000 exercises. I've selected the most relevant ones based on your query:`,
+                        type: 'plan',
+                        planData: {
+                            analysis: `Exercise suggestions for: "${messageText}"`,
+                            goal: "Exercise Search Results",
+                            days: [{
+                                day_name: "Suggested Exercises",
+                                exercises: formattedExercises
+                            }],
+                            nutrition: {
+                                daily_calories: 0,
+                                protein_grams: 0,
+                                pre_workout_shake: "",
+                                post_workout_shake: "",
+                                homemade_protein_shake: "",
+                                diet_tips: []
+                            }
+                        }
+                    };
+
+                    setChatMessages(prev => [...prev, aiMsg]);
+                    setIsTyping(false);
+                    return;
+                }
+            } catch (error) {
+                console.error('Exercise search failed:', error);
+                // Fall through to regular chat
+            }
+        }
+
         try {
             const historyForService: any[] = chatMessages.map(m => ({
                 id: Date.now().toString(),
@@ -383,7 +500,7 @@ const FitnessPanel: React.FC = () => {
 
             const result: any = await sendMessageToAgent(
                 historyForService,
-                (messageText || 'Analyze this image in detail. If it is a gym instrument, explain how to use it. If it is a workout technique, analyze the form. If it is food, provide nutritional information and whether it fits a fitness diet.') + "\n\n(CRITICAL INSTRUCTION: If recommending a diet or food, you MUST prioritize affordable, common Indian middle-class cuisine. Suggest everyday ingredients (like moong dal, paneer, sattu, eggs, soy chunks, local seasonal veggies) that are cheap and easily available to the average Indian family. Avoid expensive western diets like salmon, avocado, or quinoa unless specifically asked.\n\nAlso, you MUST use rich Markdown formatting. Use ### for headings, **bold** for emphasis, `- ` for bullet point lists, and Markdown tables with `|` for any tabular data.)",
+                (messageText || 'Analyze this image in detail. If it is a gym instrument, explain how to use it. If it is a workout technique, analyze the form. If it is food, provide nutritional information and whether it fits a fitness diet.') + "\n\n(CRITICAL INSTRUCTION: If recommending a diet or food, you MUST prioritize affordable, common Indian middle-class cuisine. Suggest everyday ingredients (like moong dal, paneer, sattu, eggs, soy chunks, local seasonal veggies) that are cheap and easily available to the average Indian family. Avoid expensive western diets like salmon, avocado, or quinoa unless specifically asked.\n\nAlso, you MUST use rich Markdown formatting. Use ### for headings, **bold** for emphasis, `- ` for bullet point lists, and Markdown tables with `|` for any tabular data.\n\nIMPORTANT: If the user is asking for exercise suggestions, tell them to use specific muscle group names like 'abs', 'chest', 'legs', 'back', 'shoulders', 'biceps', 'triceps', 'quadriceps', 'hamstrings', 'glutes', 'calves' so I can search our database of over 2,000 exercises.)",
                 rawBase64,
                 false,
                 undefined,
@@ -534,7 +651,14 @@ const FitnessPanel: React.FC = () => {
                         </div>
                     </div>
                     <button
-                        onClick={() => setView(view === 'browse' ? 'coach' : 'browse')}
+                        onClick={() => {
+                            if (view === 'browse') {
+                                setView('coach');
+                                setCoachStep('form');
+                            } else {
+                                setView('browse');
+                            }
+                        }}
                         className="px-3 py-1.5 bg-teal-50 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400 text-[10px] font-bold rounded-lg transition-colors flex items-center gap-1 hover:bg-teal-100"
                     >
                         {view === 'browse' ? <>ASK AI coach <Sparkles className="w-3 h-3" /></> : <>BROWSE <ArrowLeft className="w-3 h-3" /></>}
@@ -574,8 +698,8 @@ const FitnessPanel: React.FC = () => {
 
             {/* Content Area */}
             <div className={`
-                flex-1 overflow-y-auto px-4 sm:px-6 pb-6 min-h-0
-                ${view === 'browse' ? 'scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-700 hover:scrollbar-thumb-slate-300 dark:hover:scrollbar-thumb-slate-600' : 'scrollbar-hide'}
+                flex-1 overflow-y-auto pb-8 min-h-0
+                ${view === 'browse' ? 'px-4 sm:px-6 scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-700 hover:scrollbar-thumb-slate-300 dark:hover:scrollbar-thumb-slate-600' : 'px-2 sm:px-4 scrollbar-hide'}
             `}>
                 {view === 'browse' && (
                     <>
@@ -602,6 +726,63 @@ const FitnessPanel: React.FC = () => {
                                 ))}
                             </div>
                         </div>
+
+                        {/* Plan & Chat History */}
+                        {planHistory.length > 0 && (
+                            <div className="mb-6">
+                                <div className="flex items-center gap-2 mb-4">
+                                    <div className="p-1.5 bg-amber-100 dark:bg-amber-900/30 rounded-lg shadow-sm">
+                                        <Clock className="w-3.5 h-3.5 text-amber-500" />
+                                    </div>
+                                    <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest">Saved Plans & Chats</h3>
+                                    <span className="text-[9px] font-bold bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 px-2 py-0.5 rounded-full ml-auto">
+                                        {planHistory.length}
+                                    </span>
+                                </div>
+                                <div className="space-y-2">
+                                    {planHistory.map((entry) => {
+                                        const date = new Date(entry.date);
+                                        const dateStr = date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+                                        const timeStr = date.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+                                        return (
+                                            <div key={entry.id} className="bg-white dark:bg-[#1a2240] rounded-2xl border border-slate-100 dark:border-slate-700/50 shadow-sm overflow-hidden">
+                                                <div className="px-4 py-3 flex items-center gap-3">
+                                                    <div className="w-9 h-9 bg-amber-50 dark:bg-amber-900/20 rounded-xl flex items-center justify-center shrink-0">
+                                                        <Dumbbell className="w-4 h-4 text-amber-500" />
+                                                    </div>
+                                                    <div className="flex-1 min-w-0" onClick={() => loadFromHistory(entry)}>
+                                                        <p className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate cursor-pointer hover:text-teal-600">{entry.goal}</p>
+                                                        <div className="flex items-center gap-2 mt-0.5">
+                                                            <span className="text-[10px] text-slate-400">{dateStr} {timeStr}</span>
+                                                            <span className="text-[10px] bg-teal-50 dark:bg-teal-900/20 text-teal-600 dark:text-teal-400 px-1.5 py-0.5 rounded font-semibold">{entry.days} days</span>
+                                                            {entry.chat.length > 0 && (
+                                                                <span className="text-[10px] text-slate-400">{entry.chat.length} msgs</span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center gap-1 shrink-0">
+                                                        <button
+                                                            onClick={() => loadFromHistory(entry)}
+                                                            className="p-2 rounded-lg bg-teal-50 dark:bg-teal-900/20 text-teal-600 dark:text-teal-400 hover:bg-teal-100 transition-colors"
+                                                            title="Load plan"
+                                                        >
+                                                            <ArrowLeft className="w-3.5 h-3.5 rotate-180" />
+                                                        </button>
+                                                        <button
+                                                            onClick={() => deleteFromHistory(entry.id)}
+                                                            className="p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-slate-300 hover:text-red-500 transition-colors"
+                                                            title="Delete"
+                                                        >
+                                                            <X className="w-3.5 h-3.5" />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
 
                         {/* Selected Muscle Heatmap */}
                         {selectedTarget && (() => {
@@ -643,42 +824,42 @@ const FitnessPanel: React.FC = () => {
                                 {loading ? (
                                     <div className="flex justify-center p-8"><Loader2 className="w-6 h-6 animate-spin text-teal-500" /></div>
                                 ) : (
-                                    <div className="space-y-4">
+                                                <div className="space-y-3">
                                         {filteredExercises.map(ex => (
                                             <div key={ex.id}
-                                                className={`bg-white dark:bg-slate-800/80 p-4 rounded-2xl border transition-all duration-300 cursor-pointer shadow-sm group relative
+                                                className={`bg-white dark:bg-slate-800/80 p-3 rounded-xl border transition-all duration-300 cursor-pointer shadow-sm group relative
                                                  ${expandedExercise === ex.id
                                                         ? 'border-teal-300 dark:border-teal-700 shadow-md ring-1 ring-teal-500/20 z-40 hover:z-50'
                                                         : 'border-slate-200 dark:border-slate-700 hover:border-teal-300 dark:hover:border-teal-700 hover:shadow-lg hover:-translate-y-1 z-10'}`}
                                                 onClick={() => setExpandedExercise(expandedExercise === ex.id ? null : ex.id)}>
-                                                <div className="flex items-start gap-4">
-                                                    <div className="relative w-16 h-16 rounded-xl overflow-hidden shrink-0 border border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 shadow-inner group-hover:shadow-md transition-all flex items-center justify-center">
-                                                        <Dumbbell className="w-6 h-6 text-slate-300" />
+                                                <div className="flex items-center gap-3">
+                                                    <div className="relative w-12 h-12 rounded-lg overflow-hidden shrink-0 border border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 shadow-inner group-hover:shadow-md transition-all flex items-center justify-center">
+                                                        <Dumbbell className="w-5 h-5 text-slate-300" />
                                                     </div>
-                                                    <div className="flex-1 min-w-0 flex flex-col justify-center min-h-[4rem]">
-                                                        <p className="text-[15px] font-bold text-slate-800 dark:text-slate-100 truncate group-hover:text-teal-600 dark:group-hover:text-teal-400 transition-colors">{ex.name}</p>
-                                                        <div className="flex items-center gap-2 mt-1">
-                                                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400">
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="text-[13px] font-bold text-slate-800 dark:text-slate-100 truncate group-hover:text-teal-600 dark:group-hover:text-teal-400 transition-colors">{ex.name}</p>
+                                                        <div className="flex items-center gap-2 mt-0.5">
+                                                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400">
                                                                 {ex.equipment}
                                                             </span>
                                                         </div>
                                                     </div>
-                                                    <div className="self-center pr-2">
+                                                    <div className="self-center">
                                                         {expandedExercise === ex.id ? (
-                                                            <ChevronUp className="w-5 h-5 text-teal-500" />
+                                                            <ChevronUp className="w-4 h-4 text-teal-500" />
                                                         ) : (
-                                                            <PlayCircle className="w-6 h-6 text-slate-200 dark:text-slate-600 group-hover:text-teal-500 group-hover:scale-110 transition-all duration-300" />
+                                                            <PlayCircle className="w-5 h-5 text-slate-300 group-hover:text-teal-500 group-hover:scale-110 transition-all duration-300" />
                                                         )}
                                                     </div>
                                                 </div>
 
                                                 {/* Expanded Details */}
-                                                <div className={`grid transition-all duration-300 ease-in-out ${expandedExercise === ex.id ? 'grid-rows-[1fr] opacity-100 mt-4' : 'grid-rows-[0fr] opacity-0'}`}>
+                                                <div className={`grid transition-all duration-300 ease-in-out ${expandedExercise === ex.id ? 'grid-rows-[1fr] opacity-100 mt-3' : 'grid-rows-[0fr] opacity-0'}`}>
                                                     <div className="overflow-hidden [&:has(:hover)]:overflow-visible">
 
                                                         {/* Large Exercise Visual Banner */}
                                                         {ex.gifUrl && (
-                                                            <div className="w-full rounded-2xl mb-6 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-inner relative flex items-center justify-center z-10 transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] hover:z-50 hover:scale-[1.05] hover:-translate-y-2 hover:shadow-[0_40px_80px_-20px_rgba(0,0,0,0.5)] dark:hover:shadow-[0_40px_80px_-20px_rgba(0,0,0,0.9)] hover:ring-[6px] ring-white/90 dark:ring-slate-800/90 cursor-zoom-in overflow-hidden">
+                                                            <div className="w-full rounded-xl mb-4 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-inner relative flex items-center justify-center z-10 transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] hover:z-50 hover:scale-[1.05] hover:-translate-y-2 hover:shadow-[0_40px_80px_-20px_rgba(0,0,0,0.5)] dark:hover:shadow-[0_40px_80px_-20px_rgba(0,0,0,0.9)] hover:ring-[6px] ring-white/90 dark:ring-slate-800/90 cursor-zoom-in overflow-hidden">
                                                                 <img
                                                                     src={ex.gifUrl}
                                                                     className="w-full h-auto object-contain mix-blend-multiply dark:mix-blend-normal"
@@ -835,90 +1016,106 @@ const FitnessPanel: React.FC = () => {
                                 </button>
                             </div>
                         ) : (
-                            <div className="flex-1 flex flex-col h-full overflow-hidden min-h-0 pb-4">
+                            <div className="flex-1 flex flex-col h-full overflow-hidden min-h-0 pb-8">
                                 <div className="flex items-center justify-between mb-4">
                                     <div>
                                         <h3 className="font-bold text-lg text-teal-600">Your Plan</h3>
                                         <p className="text-xs text-slate-400">Based on your stats</p>
                                     </div>
-                                    <button onClick={() => downloadPDF(workoutPlan!)} className="flex items-center gap-1.5 text-[11px] font-bold text-teal-600 bg-teal-50 px-3 py-1.5 rounded-lg hover:bg-teal-100 transition-colors">
-                                        <Download className="w-3.5 h-3.5" /> PDF
+                                    <button
+                                        onClick={() => {
+                                            if (workoutPlan) {
+                                                saveToHistory(workoutPlan, chatMessages);
+                                                setSavedToast(true);
+                                                setTimeout(() => setSavedToast(false), 2000);
+                                            }
+                                        }}
+                                        className="flex items-center gap-1.5 text-[11px] font-bold text-amber-600 bg-amber-50 px-3 py-1.5 rounded-lg hover:bg-amber-100 transition-colors"
+                                    >
+                                        <Download className="w-3.5 h-3.5" /> Save Chat
                                     </button>
                                 </div>
 
+                                {/* Save Toast */}
+                                {savedToast && (
+                                    <div className="mb-3 flex items-center justify-center gap-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-700 dark:text-green-400 text-xs font-semibold py-2 px-4 rounded-xl animate-in fade-in slide-in-from-top-2 duration-200">
+                                        <Sparkles className="w-3.5 h-3.5" /> Plan & chat saved!
+                                    </div>
+                                )}
+
                                 {/* Chat Messages Area */}
-                                <div className="flex-1 overflow-y-auto space-y-6 pr-2 mb-4 min-h-0 scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-700">
+                                <div className="flex-1 overflow-y-auto space-y-6 pr-0 mb-4 min-h-0 scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-700">
                                     {/* The Initial Plan Display */}
                                     <div className="bg-white dark:bg-slate-800/80 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
-                                        <div className="p-4 bg-teal-50/50 dark:bg-teal-900/10 border-b border-slate-100 dark:border-slate-700 italic text-[13px] leading-relaxed text-slate-700 dark:text-slate-300">
+                                        <div className="px-3 py-4 bg-teal-50/50 dark:bg-teal-900/10 border-b border-slate-100 dark:border-slate-700 italic text-[13px] leading-relaxed text-slate-700 dark:text-slate-300">
                                             "{workoutPlan?.analysis}"
                                         </div>
-                                        <div className="p-5 space-y-6">
+                                        <div className="px-3 py-5 space-y-6">
                                             {workoutPlan?.days.map((day, dIdx) => (
                                                 <div key={dIdx}>
                                                     <h4 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
                                                         <span className="w-2 h-2 bg-gradient-to-tr from-teal-400 to-teal-600 rounded-full shadow-sm shadow-teal-500/50"></span>
                                                         {day.day_name}
                                                     </h4>
-                                                    <div className="space-y-3">
-                                                        {day.exercises.map((ex, eIdx) => {
-                                                            const uniqueId = `plan-${dIdx}-${eIdx}`;
-                                                            return (
-                                                                <div key={eIdx}
-                                                                    className={`bg-white dark:bg-slate-800/80 p-4 rounded-2xl border transition-all duration-300 cursor-pointer shadow-sm group relative
-                                                                     ${expandedExercise === uniqueId
-                                                                            ? 'border-teal-300 dark:border-teal-700 shadow-md ring-1 ring-teal-500/20 z-40 hover:z-50'
-                                                                            : 'bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-700 hover:bg-white dark:hover:bg-slate-800 hover:border-teal-300 dark:hover:border-teal-700 hover:shadow-lg hover:-translate-y-1 z-10'}`}
-                                                                    onClick={() => setExpandedExercise(expandedExercise === uniqueId ? null : uniqueId)}>
-                                                                    <div className="flex items-start gap-4">
-                                                                        <div className="relative w-16 h-16 rounded-xl overflow-hidden shrink-0 border border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-inner group-hover:shadow-md transition-all flex items-center justify-center">
-                                                                            <Dumbbell className="w-6 h-6 text-slate-300" />
-                                                                        </div>
-                                                                        <div className="flex-1 min-w-0 flex flex-col justify-center min-h-[4rem]">
-                                                                            <p className="text-[15px] font-bold text-slate-800 dark:text-slate-100 truncate group-hover:text-teal-600 dark:group-hover:text-teal-400 transition-colors">{ex.name}</p>
-                                                                            <div className="flex items-center gap-2 mt-1 flex-wrap">
-                                                                                <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400">
-                                                                                    {ex.equipment || 'Bodyweight'}
-                                                                                </span>
-                                                                                <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                                                                                    {ex.target}
-                                                                                </span>
-                                                                                {ex.sets && ex.reps && (
-                                                                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-teal-50 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400">
-                                                                                        {ex.sets} × {ex.reps}
-                                                                                    </span>
-                                                                                )}
-                                                                                {ex.rest_seconds && (
-                                                                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-orange-50 dark:bg-orange-900/20 text-orange-500 dark:text-orange-400">
-                                                                                        ⏱ {ex.rest_seconds}s rest
-                                                                                    </span>
-                                                                                )}
-                                                                            </div>
-                                                                        </div>
-                                                                        <div className="self-center pr-2">
-                                                                            {expandedExercise === uniqueId ? (
-                                                                                <ChevronUp className="w-5 h-5 text-teal-500" />
-                                                                            ) : (
-                                                                                <PlayCircle className="w-6 h-6 text-slate-200 dark:text-slate-600 group-hover:text-teal-500 group-hover:scale-110 transition-all duration-300" />
-                                                                            )}
-                                                                        </div>
-                                                                    </div>
-
-                                                                    {/* Expanded Details */}
-                                                                    <div className={`grid transition-all duration-300 ease-in-out ${expandedExercise === uniqueId ? 'grid-rows-[1fr] opacity-100 mt-4' : 'grid-rows-[0fr] opacity-0'}`}>
-                                                                        <div className="overflow-hidden [&:has(:hover)]:overflow-visible">
-
-                                                                            {/* Large Exercise Visual Banner */}
-                                                                            {ex.gifUrl && (
-                                                                                <div className="w-full rounded-2xl mb-6 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-inner relative flex items-center justify-center z-10 transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] hover:z-50 hover:scale-[1.05] hover:-translate-y-2 hover:shadow-[0_40px_80px_-20px_rgba(0,0,0,0.5)] dark:hover:shadow-[0_40px_80px_-20px_rgba(0,0,0,0.9)] hover:ring-[6px] ring-white/90 dark:ring-slate-800/90 cursor-zoom-in overflow-hidden">
-                                                                                    <img
-                                                                                        src={ex.gifUrl}
-                                                                                        className="w-full h-auto object-contain mix-blend-multiply dark:mix-blend-normal"
-                                                                                        loading="lazy"
-                                                                                        alt={ex.name}
-                                                                                    />
+                                                            <div className="space-y-3">
+                                                                {day.exercises.map((ex, eIdx) => {
+                                                                    const uniqueId = `plan-${dIdx}-${eIdx}`;
+                                                                    return (
+                                                                        <div key={eIdx}
+                                                                            className={`bg-white dark:bg-slate-800/80 p-4 rounded-2xl border transition-all duration-300 cursor-pointer shadow-sm group relative
+                                                                             ${expandedExercise === uniqueId
+                                                                                    ? 'border-teal-300 dark:border-teal-700 shadow-md ring-1 ring-teal-500/20 z-40 hover:z-50'
+                                                                                    : 'bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-700 hover:bg-white dark:hover:bg-slate-800 hover:border-teal-300 dark:hover:border-teal-700 hover:shadow-lg hover:-translate-y-1 z-10'}`}
+                                                                            onClick={() => setExpandedExercise(expandedExercise === uniqueId ? null : uniqueId)}>
+                                                                            <div className="flex items-center gap-4">
+                                                                                <div className="relative w-14 h-14 rounded-xl overflow-hidden shrink-0 border border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-inner group-hover:shadow-md transition-all flex items-center justify-center">
+                                                                                    <Dumbbell className="w-5 h-5 text-slate-300" />
                                                                                 </div>
-                                                                            )}
+                                                                                <div className="flex-1 min-w-0">
+                                                                                    <p className="text-[14px] font-bold text-slate-800 dark:text-slate-100 truncate group-hover:text-teal-600 dark:group-hover:text-teal-400 transition-colors">{ex.name}</p>
+                                                                                    <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                                                                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400">
+                                                                                            {ex.equipment || 'Bodyweight'}
+                                                                                        </span>
+                                                                                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                                                                                            {ex.target}
+                                                                                        </span>
+                                                                                        {ex.sets && ex.reps && (
+                                                                                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-teal-50 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400">
+                                                                                                {ex.sets} × {ex.reps}
+                                                                                            </span>
+                                                                                        )}
+                                                                                        {ex.rest_seconds && (
+                                                                                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-orange-50 dark:bg-orange-900/20 text-orange-500 dark:text-orange-400">
+                                                                                                ⏱ {ex.rest_seconds}s rest
+                                                                                            </span>
+                                                                                        )}
+                                                                                    </div>
+                                                                                </div>
+                                                                                <div className="self-center">
+                                                                                    {expandedExercise === uniqueId ? (
+                                                                                        <ChevronUp className="w-5 h-5 text-teal-500" />
+                                                                                    ) : (
+                                                                                        <PlayCircle className="w-5 h-5 text-slate-300 group-hover:text-teal-500 group-hover:scale-110 transition-all duration-300" />
+                                                                                    )}
+                                                                                </div>
+                                                                            </div>
+
+                                                                        {/* Expanded Details */}
+                                                                        <div className={`grid transition-all duration-300 ease-in-out ${expandedExercise === uniqueId ? 'grid-rows-[1fr] opacity-100 mt-4' : 'grid-rows-[0fr] opacity-0'}`}>
+                                                                            <div className="overflow-hidden [&:has(:hover)]:overflow-visible">
+
+                                                                                {/* Large Exercise Visual Banner */}
+                                                                                {ex.gifUrl && (
+                                                                                    <div className="w-full rounded-2xl mb-6 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-inner relative flex items-center justify-center z-10 transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] hover:z-50 hover:scale-[1.05] hover:-translate-y-2 hover:shadow-[0_40px_80px_-20px_rgba(0,0,0,0.5)] dark:hover:shadow-[0_40px_80px_-20px_rgba(0,0,0,0.9)] hover:ring-[6px] ring-white/90 dark:ring-slate-800/90 cursor-zoom-in overflow-hidden">
+                                                                                        <img
+                                                                                            src={ex.gifUrl}
+                                                                                            className="w-full h-auto object-contain mix-blend-multiply dark:mix-blend-normal"
+                                                                                            loading="lazy"
+                                                                                            alt={ex.name}
+                                                                                        />
+                                                                                    </div>
+                                                                                )}
 
                                                                             {/* Pro Tip */}
                                                                             {ex.tips && (
@@ -956,7 +1153,7 @@ const FitnessPanel: React.FC = () => {
 
                                         {/* Nutrition Section */}
                                         {workoutPlan?.nutrition && (
-                                            <div className="p-5 border-t border-slate-100 dark:border-slate-700">
+                                            <div className="px-3 py-5 border-t border-slate-100 dark:border-slate-700">
                                                 <h4 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
                                                     <span className="w-2 h-2 bg-gradient-to-tr from-green-400 to-green-600 rounded-full shadow-sm shadow-green-500/50"></span>
                                                     🥤 Nutrition & Shakes
@@ -1025,28 +1222,15 @@ const FitnessPanel: React.FC = () => {
                                                                 <img
                                                                     src={msg.image}
                                                                     alt="Uploaded"
-                                                                    className="max-w-full max-h-48 rounded-lg object-cover"
+                                                                    className="w-24 h-24 rounded-lg object-cover"
                                                                 />
                                                             </div>
                                                         )}
-                                                        <ReactMarkdown
-                                                            remarkPlugins={[remarkGfm]}
-                                                            className="text-[13px] leading-relaxed break-words"
-                                                            components={{
-                                                                h3: ({ node, ...props }) => <h3 className="text-[15px] font-bold mt-4 mb-2 text-teal-800 dark:text-teal-400" {...props} />,
-                                                                p: ({ node, ...props }) => <p className="my-2" {...props} />,
-                                                                ul: ({ node, ...props }) => <ul className="list-disc ml-5 my-2 space-y-1" {...props} />,
-                                                                ol: ({ node, ...props }) => <ol className="list-decimal ml-5 my-2 space-y-1" {...props} />,
-                                                                strong: ({ node, ...props }) => <strong className="font-bold text-teal-700 dark:text-teal-300" {...props} />,
-                                                                table: ({ node, ...props }) => <div className="w-full overflow-x-auto my-4"><table className="w-full border-collapse text-left overflow-hidden rounded-xl shadow-sm border border-slate-200 dark:border-slate-700" {...props} /></div>,
-                                                                thead: ({ node, ...props }) => <thead className="bg-slate-100 dark:bg-slate-800" {...props} />,
-                                                                th: ({ node, ...props }) => <th className="border-b border-r last:border-r-0 border-slate-200 dark:border-slate-700 font-bold p-3 text-slate-800 dark:text-slate-200" {...props} />,
-                                                                td: ({ node, ...props }) => <td className="border-b border-r last:border-r-0 border-slate-200 dark:border-slate-700 p-3" {...props} />,
-                                                                tr: ({ node, ...props }) => <tr className="even:bg-slate-50/50 dark:even:bg-slate-800/30" {...props} />
-                                                            }}
-                                                        >
-                                                            {msg.content}
-                                                        </ReactMarkdown>
+                                                        {msg.role === 'assistant' ? (
+                                                            <RichMessageRenderer content={msg.content} />
+                                                        ) : (
+                                                            <span className="text-[13px] leading-relaxed break-words">{msg.content}</span>
+                                                        )}
 
                                                         {msg.role === 'assistant' && i === latestAssistantMessageIndex && msg.suggestedQuestionCards && msg.suggestedQuestionCards.length > 0 && (
                                                             <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-700/60">

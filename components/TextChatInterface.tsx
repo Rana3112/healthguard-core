@@ -1032,6 +1032,80 @@ Keep responses concise and actionable.`;
         return;
       }
 
+      // Image Mode: Generate AI images using Freepik API
+      if (activeMode === 'image') {
+        const BACKEND_URL = getBackendUrl();
+        
+        // Add user message
+        const userMsg: ChatMessage = {
+          id: Date.now().toString(),
+          role: MessageRole.USER,
+          text: text,
+          timestamp: Date.now()
+        };
+        
+        // Add loading message
+        const loadingMsgId = (Date.now() + 1).toString();
+        setMessages(prev => [...prev, {
+          id: loadingMsgId,
+          role: MessageRole.MODEL,
+          text: "Generating image... Please wait.",
+          timestamp: Date.now(),
+          isLoading: true
+        }]);
+
+        try {
+          const response = await fetch(`${BACKEND_URL}/generate-image`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prompt: text })
+          });
+          
+          const data = await response.json();
+          
+          if (data.success && data.image_url) {
+            // Update loading message with generated image
+            setMessages(prev => prev.map(msg => 
+              msg.id === loadingMsgId 
+                ? {
+                    ...msg,
+                    text: `Here's your generated image for: "${text}"`,
+                    image: data.image_url.startsWith('data:') ? data.image_url : `data:image/png;base64,${data.image_url}`,
+                    isLoading: false,
+                    timestamp: Date.now()
+                  }
+                : msg
+            ));
+          } else {
+            setMessages(prev => prev.map(msg => 
+              msg.id === loadingMsgId 
+                ? {
+                    ...msg,
+                    text: `Failed to generate image: ${data.error || 'Unknown error'}`,
+                    isLoading: false,
+                    timestamp: Date.now()
+                  }
+                : msg
+            ));
+          }
+        } catch (error) {
+          console.error('[Image Mode] Error:', error);
+          setMessages(prev => prev.map(msg => 
+            msg.id === loadingMsgId 
+              ? {
+                  ...msg,
+                  text: 'Failed to generate image. Please try again.',
+                  isLoading: false,
+                  timestamp: Date.now()
+                }
+              : msg
+          ));
+        }
+
+        setIsLoading(false);
+        return;
+      }
+
       if (activeMode === 'max_deep_think') {
         const { sendMessageToOpenAI } = await import('../services/openaiDeepThinkService');
 
@@ -1223,6 +1297,7 @@ Keep responses concise and actionable.`;
         if (agentSubMode === 'medicine') return "Enter medicine name to search prices (e.g., Dolo 650, Crocin)...";
         if (agentSubMode === 'reminder') return "Enter reminder (e.g., remind me to take medicine tomorrow at 10am)...";
         return "Ask me to find medicines, compare prices, or find locations...";
+      case 'image': return "Describe the image you want to generate (e.g., push-up exercise illustration)...";
       case 'vision': return "Show me an image, and I will analyze it...";
       case 'max_deep_think': return "Ask a highly complex medical question for maximum reasoning...";
       case 'thinking': return "Ask a complex medical question for deep reasoning...";
@@ -1618,6 +1693,10 @@ Keep responses concise and actionable.`;
                 Agent
                 {!isPro && <Lock className="w-2 h-2 ml-0.5 text-slate-400 flex-shrink-0" />}
               </button>
+              <button onClick={() => setModelMode('image')} className={`flex-none snap-start min-w-[84px] flex items-center justify-center gap-1 px-3 py-1.5 rounded-full text-[10px] sm:text-[11px] font-medium transition-all whitespace-nowrap ${modelMode === 'image' ? 'bg-cyan-50 dark:bg-cyan-900/30 text-cyan-600 dark:text-cyan-400 border border-cyan-200 dark:border-cyan-800 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-transparent'}`}>
+                <Image className={`w-3 h-3 flex-shrink-0 ${modelMode === 'image' ? 'text-cyan-500' : ''}`} />
+                Image
+              </button>
             </div>
           </div>
 
@@ -1657,6 +1736,7 @@ Keep responses concise and actionable.`;
                 onKeyDown={(e) => e.key === 'Enter' && handleInitialSend()}
                 placeholder={getPlaceholder()}
                 className={`w-full border-none rounded-2xl pl-4 pr-12 py-3.5 focus:ring-2 text-slate-700 placeholder:text-slate-400 font-medium transition-all ${modelMode === 'agent' ? 'bg-white focus:ring-purple-500/20' :
+                  modelMode === 'image' ? 'bg-cyan-50 focus:ring-cyan-500/20' :
                   'bg-slate-100 focus:ring-teal-500/20'
                   }`}
               />
@@ -1666,6 +1746,7 @@ Keep responses concise and actionable.`;
                 disabled={!input.trim() && !selectedImage}
                 className={`absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-xl transition-all ${input.trim() || selectedImage
                   ? (modelMode === 'agent' ? 'bg-purple-600 hover:bg-purple-700 text-white shadow-md' :
+                    modelMode === 'image' ? 'bg-cyan-600 hover:bg-cyan-700 text-white shadow-md' :
                     'bg-teal-600 hover:bg-teal-700 text-white shadow-md')
                   : 'bg-slate-200 text-slate-400 cursor-not-allowed'
                   }`}

@@ -1763,5 +1763,96 @@ def create_general_reminder():
         return jsonify({"error": str(e)}), 500
 
 
+# --- Freepik AI Image Generation ---
+FREEPIK_API_KEY = os.getenv("FREEPIK_API_KEY", "")
+
+
+@app.route("/generate-image", methods=["POST"])
+def generate_image_endpoint():
+    """Generate AI image using Freepik API."""
+    if not FREEPIK_API_KEY:
+        return jsonify({"error": "FREEPIK_API_KEY not configured"}), 500
+
+    data = request.json
+    prompt = data.get("prompt", "")
+
+    if not prompt:
+        return jsonify({"error": "Missing prompt parameter"}), 400
+
+    # Enhance prompt for exercise/health related images
+    enhanced_prompt = prompt
+    if any(
+        word in prompt.lower()
+        for word in ["exercise", "workout", "fitness", "gym", "muscle", "stretch"]
+    ):
+        enhanced_prompt = (
+            f"{prompt}, fitness illustration, clean flat design, "
+            "professional medical illustration style, teal and white color scheme, "
+            "clear anatomy, side view, white background"
+        )
+    else:
+        enhanced_prompt = (
+            f"{prompt}, professional illustration, clean modern design, "
+            "high quality, detailed, vibrant colors"
+        )
+
+    print(f"[Image Gen] Generating image for: {prompt[:80]}...")
+
+    try:
+        headers = {
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            "x-freepik-api-key": FREEPIK_API_KEY,
+        }
+
+        payload = {
+            "prompt": enhanced_prompt,
+            "aspect_ratio": "square_1_1",
+        }
+
+        response = req.post(
+            "https://api.freepik.com/v1/ai/mystic",
+            headers=headers,
+            json=payload,
+            timeout=60,
+        )
+
+        if response.status_code == 200:
+            result = response.json()
+            # Extract image URL from response
+            image_url = None
+            if "data" in result and "base64" in result["data"]:
+                image_url = result["data"]["base64"]
+            elif "data" in result and "url" in result["data"]:
+                image_url = result["data"]["url"]
+            elif "base64" in result:
+                image_url = result["base64"]
+            elif "url" in result:
+                image_url = result["url"]
+
+            if image_url:
+                print(f"[Image Gen] Success! Image generated.")
+                return jsonify(
+                    {"success": True, "image_url": image_url, "prompt": prompt}
+                )
+            else:
+                print(f"[Image Gen] No image URL in response: {result}")
+                return jsonify(
+                    {"success": False, "error": "No image in response", "raw": result}
+                ), 500
+        else:
+            print(f"[Image Gen] API error: {response.status_code} - {response.text}")
+            return jsonify(
+                {
+                    "success": False,
+                    "error": f"Freepik API error: {response.status_code}",
+                }
+            ), 500
+
+    except Exception as e:
+        print(f"[Image Gen] Error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5001)

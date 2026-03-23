@@ -24,7 +24,7 @@ import { getGroqApiKey, getOpenRouterApiKey, getGeminiApiKey } from '../lib/apiK
 // TYPES
 // =============================================================================
 
-export type ClinicalModelMode = 'fast' | 'standard' | 'thinking' | 'max_deep_think' | 'vision' | 'agent';
+export type ClinicalModelMode = 'fast' | 'standard' | 'thinking' | 'max_deep_think' | 'vision' | 'agent' | 'image';
 
 interface LLMMessage {
   role: 'system' | 'user' | 'assistant';

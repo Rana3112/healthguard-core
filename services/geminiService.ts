@@ -5,7 +5,7 @@ import { AgentAction, HealthOrder, HealthAlert, ChatMessage, MessageRole } from 
 import { getBackendUrl } from "../src/lib/backendUrl";
 import { getGeminiApiKey } from "../src/lib/apiKeys";
 
-export type ModelMode = 'fast' | 'standard' | 'thinking' | 'max_deep_think' | 'vision' | 'agent';
+export type ModelMode = 'fast' | 'standard' | 'thinking' | 'max_deep_think' | 'vision' | 'agent' | 'image';
 
 // Tools Definition for Agentic AI
 

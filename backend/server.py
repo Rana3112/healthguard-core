@@ -1769,7 +1769,7 @@ FREEPIK_API_KEY = os.getenv("FREEPIK_API_KEY", "")
 
 @app.route("/generate-image", methods=["POST"])
 def generate_image_endpoint():
-    """Generate AI image using Freepik API."""
+    """Generate AI image using Freepik API (async - polls for result)."""
     if not FREEPIK_API_KEY:
         return jsonify({"error": "FREEPIK_API_KEY not configured"}), 500
 
@@ -1810,37 +1810,15 @@ def generate_image_endpoint():
             "aspect_ratio": "square_1_1",
         }
 
+        # Step 1: Submit the image generation task
         response = req.post(
             "https://api.freepik.com/v1/ai/mystic",
             headers=headers,
             json=payload,
-            timeout=60,
+            timeout=30,
         )
 
-        if response.status_code == 200:
-            result = response.json()
-            # Extract image URL from response
-            image_url = None
-            if "data" in result and "base64" in result["data"]:
-                image_url = result["data"]["base64"]
-            elif "data" in result and "url" in result["data"]:
-                image_url = result["data"]["url"]
-            elif "base64" in result:
-                image_url = result["base64"]
-            elif "url" in result:
-                image_url = result["url"]
-
-            if image_url:
-                print(f"[Image Gen] Success! Image generated.")
-                return jsonify(
-                    {"success": True, "image_url": image_url, "prompt": prompt}
-                )
-            else:
-                print(f"[Image Gen] No image URL in response: {result}")
-                return jsonify(
-                    {"success": False, "error": "No image in response", "raw": result}
-                ), 500
-        else:
+        if response.status_code != 200:
             print(f"[Image Gen] API error: {response.status_code} - {response.text}")
             return jsonify(
                 {
@@ -1848,6 +1826,53 @@ def generate_image_endpoint():
                     "error": f"Freepik API error: {response.status_code}",
                 }
             ), 500
+
+        result = response.json()
+        task_id = result.get("data", {}).get("task_id")
+
+        if not task_id:
+            print(f"[Image Gen] No task_id in response: {result}")
+            return jsonify({"success": False, "error": "No task ID returned"}), 500
+
+        print(f"[Image Gen] Task created: {task_id}, polling for result...")
+
+        # Step 2: Poll for the result (max 30 seconds)
+        for i in range(15):
+            time.sleep(2)  # Wait 2 seconds between polls
+            status_response = req.get(
+                f"https://api.freepik.com/v1/ai/mystic/{task_id}",
+                headers=headers,
+                timeout=10,
+            )
+
+            if status_response.status_code != 200:
+                print(f"[Image Gen] Poll error: {status_response.status_code}")
+                continue
+
+            status_result = status_response.json()
+            status = status_result.get("data", {}).get("status", "")
+            generated = status_result.get("data", {}).get("generated", [])
+
+            print(f"[Image Gen] Poll {i + 1}/15: status={status}")
+
+            if status == "COMPLETED" and generated:
+                image_url = generated[0]
+                print(f"[Image Gen] Success! Image URL: {image_url[:80]}...")
+                return jsonify(
+                    {"success": True, "image_url": image_url, "prompt": prompt}
+                )
+
+            if status == "FAILED" or status == "REJECTED":
+                print(f"[Image Gen] Task failed: {status}")
+                return jsonify(
+                    {"success": False, "error": f"Image generation failed: {status}"}
+                ), 500
+
+        # Timeout
+        print("[Image Gen] Timeout waiting for image")
+        return jsonify(
+            {"success": False, "error": "Timeout waiting for image generation"}
+        ), 500
 
     except Exception as e:
         print(f"[Image Gen] Error: {e}")

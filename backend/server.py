@@ -1836,9 +1836,9 @@ def generate_image_endpoint():
 
         print(f"[Image Gen] Task created: {task_id}, polling for result...")
 
-        # Step 2: Poll for the result (max 30 seconds)
-        for i in range(15):
-            time.sleep(2)  # Wait 2 seconds between polls
+        # Step 2: Poll for the result (max 90 seconds - Freepik can be slow for complex images)
+        for i in range(30):
+            time.sleep(3)  # Wait 3 seconds between polls
             status_response = req.get(
                 f"https://api.freepik.com/v1/ai/mystic/{task_id}",
                 headers=headers,
@@ -1853,7 +1853,7 @@ def generate_image_endpoint():
             status = status_result.get("data", {}).get("status", "")
             generated = status_result.get("data", {}).get("generated", [])
 
-            print(f"[Image Gen] Poll {i + 1}/15: status={status}")
+            print(f"[Image Gen] Poll {i + 1}/30: status={status}")
 
             if status == "COMPLETED" and generated:
                 image_url = generated[0]

@@ -1250,14 +1250,15 @@ Keep responses concise and actionable.`;
       case 'Symptoms':
         setModelMode('vision');
         pendingAutoPromptRef.current = 'Analyze this symptom document or image. Identify all symptoms mentioned, assess their severity, suggest possible conditions or causes, and recommend next steps including home remedies and when to see a doctor. Format the results clearly.';
-        fileInputRef.current?.click();
+        // On mobile/Capacitor, we should briefly wait or ensure it's a direct enough chain
+        setTimeout(() => fileInputRef.current?.click(), 100);
         break;
 
       // Vision mode — show file dialog, auto-submit prompt once image chosen
       case 'Medicines':
         setModelMode('vision');
         pendingAutoPromptRef.current = 'Analyze this medicine. Identify the medicine name, its uses, dosage instructions, side effects, warnings, and any important drug interactions. Format the results clearly.';
-        fileInputRef.current?.click();
+        setTimeout(() => fileInputRef.current?.click(), 100);
         break;
 
       // Pharmacy — switch to Agent mode, show interactive map with pharmacy data
@@ -1279,7 +1280,7 @@ Keep responses concise and actionable.`;
       case 'Report':
         setModelMode('vision');
         pendingAutoPromptRef.current = 'Analyze this medical report. Extract ALL lab values and test results. For each value: show the parameter name, measured value, normal range, and status (✅ Normal, ⬆️ High, ⬇️ Low). Flag any critical or abnormal values. Then provide a summary of overall health and actionable recommendations. Format results in a clear table.';
-        fileInputRef.current?.click();
+        setTimeout(() => fileInputRef.current?.click(), 100);
         break;
 
       // Redirect to the dedicated Drug Interaction tool in the right sidebar

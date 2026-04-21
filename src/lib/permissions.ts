@@ -16,6 +16,7 @@ export async function requestAllPermissions(): Promise<Record<string, string>> {
     return result;
   }
 
+  // Request Microphone
   try {
     if (isMicrophoneSupported()) {
       await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -23,6 +24,19 @@ export async function requestAllPermissions(): Promise<Record<string, string>> {
     }
   } catch {
     result.microphone = "denied";
+  }
+
+  // Request Geolocation
+  try {
+    if ("geolocation" in navigator) {
+      await new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000 });
+      });
+      result.geolocation = "granted";
+    }
+  } catch (error) {
+    console.warn("[Permissions] Geolocation denied or timed out:", error);
+    result.geolocation = "denied";
   }
 
   return result;

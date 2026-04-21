@@ -12,4 +12,5 @@ COPY . ./
 
 EXPOSE 8080
 
-CMD ["gunicorn", "server:app", "--bind", "0.0.0.0:8080", "--workers", "2", "--threads", "4", "--timeout", "120"]
+# Shell form to allow $PORT interpolation
+CMD gunicorn server:app --bind 0.0.0.0:${PORT:-8080} --workers 2 --threads 4 --timeout 120

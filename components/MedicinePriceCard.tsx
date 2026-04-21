@@ -158,61 +158,63 @@ const MedicinePriceCard: React.FC<MedicinePriceCardProps> = ({ query, results, c
                                     </div>
                                 )}
 
-                                {/* Product Info */}
-                                <div className="flex-1 min-w-0">
-                                    <p className="text-xs font-medium text-gray-900 line-clamp-2 leading-tight">
-                                        {result.title}
-                                    </p>
-                                    <div className="flex items-center gap-2 mt-1">
-                                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${style.bg} ${style.text} ${style.border} border`}>
-                                            {result.platform}
-                                        </span>
-                                        {result.rating && (
-                                            <span className="flex items-center gap-0.5 text-[10px] text-yellow-500">
-                                                <Star className="w-2.5 h-2.5 fill-yellow-500 text-yellow-500" />
-                                                {result.rating}
+                                <div className="flex flex-col sm:flex-row flex-1 min-w-0 gap-3">
+                                    {/* Product Info */}
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-xs font-medium text-gray-900 line-clamp-2 leading-tight">
+                                            {result.title}
+                                        </p>
+                                        <div className="flex flex-wrap items-center gap-2 mt-1">
+                                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${style.bg} ${style.text} ${style.border} border`}>
+                                                {result.platform}
                                             </span>
-                                        )}
-                                        {result.delivery && (
-                                            <span className="flex items-center gap-0.5 text-[10px] text-gray-500">
-                                                <Truck className="w-2.5 h-2.5" />
-                                                {result.delivery}
-                                            </span>
-                                        )}
-                                    </div>
-                                </div>
-
-                                {/* Price + Buttons */}
-                                <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
-                                    <span className={`text-sm font-bold ${isCheapest ? 'text-green-600' : 'text-gray-900'}`}>
-                                        {result.price_display}
-                                    </span>
-                                    <div className="flex items-center gap-1.5">
-                                        <a
-                                            href={result.link || `https://www.google.com/search?tbm=shop&q=${encodeURIComponent(result.title)}`}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className={`flex items-center gap-1 text-xs font-bold text-white px-3 py-1.5 rounded-full ${style.accent} hover:opacity-90 hover:scale-105 transition-all shadow-sm`}
-                                        >
-                                            Buy <ExternalLink className="w-3 h-3" />
-                                        </a>
-                                        <button
-                                            onClick={() => handleAutoOrder(result, index)}
-                                            disabled={orderStatus === 'running'}
-                                            className={`flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full transition-all shadow-sm ${isOrdering
-                                                ? 'bg-amber-100 text-amber-700 border border-amber-200 cursor-wait'
-                                                : orderStatus === 'running'
-                                                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                                                    : 'bg-white border border-medical-200 text-medical-600 hover:bg-medical-50 hover:scale-105'
-                                                }`}
-                                            title="AI agent will automatically add this to your cart"
-                                        >
-                                            {isOrdering ? (
-                                                <><Loader2 className="w-3 h-3 animate-spin" /> Ordering...</>
-                                            ) : (
-                                                <><Bot className="w-3 h-3" /> Auto-Order</>
+                                            {result.rating && (
+                                                <span className="flex items-center gap-0.5 text-[10px] text-yellow-500">
+                                                    <Star className="w-2.5 h-2.5 fill-yellow-500 text-yellow-500" />
+                                                    {result.rating}
+                                                </span>
                                             )}
-                                        </button>
+                                            {result.delivery && (
+                                                <span className="flex items-center gap-0.5 text-[10px] text-gray-500">
+                                                    <Truck className="w-2.5 h-2.5" />
+                                                    {result.delivery}
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Price + Buttons */}
+                                    <div className="flex flex-row sm:flex-col items-center sm:items-end justify-between sm:justify-start gap-1.5 flex-shrink-0 mt-1 sm:mt-0">
+                                        <span className={`text-sm font-bold ${isCheapest ? 'text-green-600' : 'text-gray-900'}`}>
+                                            {result.price_display}
+                                        </span>
+                                        <div className="flex items-center gap-1.5">
+                                            <a
+                                                href={result.link || `https://www.google.com/search?tbm=shop&q=${encodeURIComponent(result.title)}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className={`flex items-center gap-1 text-[10px] sm:text-xs font-bold text-white px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full ${style.accent} hover:opacity-90 transition-all shadow-sm whitespace-nowrap`}
+                                            >
+                                                Buy <ExternalLink className="w-3 h-3" />
+                                            </a>
+                                            <button
+                                                onClick={() => handleAutoOrder(result, index)}
+                                                disabled={orderStatus === 'running'}
+                                                className={`flex items-center gap-1 text-[10px] sm:text-xs font-bold px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full transition-all shadow-sm whitespace-nowrap ${isOrdering
+                                                    ? 'bg-amber-100 text-amber-700 border border-amber-200 cursor-wait'
+                                                    : orderStatus === 'running'
+                                                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                                        : 'bg-white border border-medical-200 text-medical-600 hover:bg-medical-50'
+                                                    }`}
+                                                title="AI agent will automatically add this to your cart"
+                                            >
+                                                {isOrdering ? (
+                                                    <><Loader2 className="w-3 h-3 animate-spin" /> Ordering...</>
+                                                ) : (
+                                                    <><Bot className="w-3 h-3" /> Auto-Order</>
+                                                )}
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             </div>

@@ -16,7 +16,7 @@ parent_dir = os.path.dirname(basedir)
 load_dotenv(os.path.join(parent_dir, ".env"))
 load_dotenv(os.path.join(parent_dir, ".env.local"), override=True)
 
-api_key = os.getenv("OPENROUTER_API_KEY")
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 groq_api_key = os.getenv("GROQ_API_KEY")
 
 app = Flask(__name__)
@@ -99,13 +99,25 @@ chat_collection = None
 
 if MONGODB_URI:
     try:
-        mongo_client = MongoClient(MONGODB_URI, tlsCAFile=certifi.where())
+        # Robust initialization for Atlas SRV connections in restricted DNS environments
+        mongo_client = MongoClient(
+            MONGODB_URI,
+            tlsCAFile=certifi.where(),
+            connectTimeoutMS=30000,
+            serverSelectionTimeoutMS=30000,
+            socketTimeoutMS=30000,
+            connect=False  # Delay connection to avoid transient DNS issues on startup
+        )
+        # Verify connection
+        mongo_client.admin.command('ping')
+        
         db = mongo_client.get_default_database()
         chat_collection = db["chats"]
-        users_collection = db["users"]  # New collection for subscription status
+        users_collection = db["users"] 
         print("[System] Successfully connected to MongoDB Atlas.")
     except Exception as e:
-        print(f"[System] Failed to connect to MongoDB: {e}")
+        print(f"[System] MongoDB Connection Error: {e}")
+        print("[System] TIP: If DNS issues persist on Railway, try using the standard 'mongodb://' connection string.")
 
 # --- Stripe Setup ---
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
@@ -1312,8 +1324,9 @@ def stripe_webhook():
     return jsonify(success=True)
 
 
-# --- Nvidia Kimi K2.5 Deep Think Endpoint ---
-NVIDIA_API_KEY = os.getenv("NVIDIA_API_KEY")
+# --- NVIDIA Kimi Deep Think Endpoint ---
+NVIDIA_DEEPTHINK_MODEL = "moonshotai/kimi-k1.5"
+NVIDIA_API_KEY = os.getenv("NVIDIA_API_KEY", "")
 
 
 @app.route("/api/nvidia-deepthink", methods=["POST"])

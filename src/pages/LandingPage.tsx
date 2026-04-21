@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { FadeInSection } from '../../components/FadeInSection';
 import { HealthGuardIcon } from '../components/HealthGuardIcon';
 import { useAuth } from '../context/AuthContext';
+import { BACKEND_URL } from '../lib/backendUrl';
 
 const LandingPage: React.FC = () => {
     const navigate = useNavigate();
@@ -395,7 +396,6 @@ const LandingPage: React.FC = () => {
                                         navigate('/signup');
                                     } else {
                                         try {
-                                            const BACKEND_URL = (import.meta as any).env?.VITE_BACKEND_URL || 'http://localhost:5001';
                                             const response = await fetch(`${BACKEND_URL}/api/create-checkout-session`, {
                                                 method: 'POST',
                                                 headers: { 'Content-Type': 'application/json' },

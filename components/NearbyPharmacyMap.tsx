@@ -473,12 +473,12 @@ const NearbyPharmacyMap: React.FC = () => {
                                     <p className="text-xs text-slate-400 mt-1">
                                         {ph.distance < 1 ? `${(ph.distance * 1000).toFixed(0)} m away` : `${ph.distance.toFixed(1)} km away`}
                                     </p>
-                                    <div className="flex gap-2 mt-2">
-                                        <button onClick={() => openDirections(ph.lat, ph.lon)} className="text-xs bg-teal-500 text-white px-3 py-1 rounded-full hover:bg-teal-600 transition-colors flex items-center gap-1">
+                                    <div className="flex flex-col gap-2 mt-2">
+                                        <button onClick={() => openDirections(ph.lat, ph.lon)} className="text-xs bg-teal-500 text-white px-3 py-1.5 rounded-full hover:bg-teal-600 transition-colors flex items-center justify-center gap-1">
                                             <Navigation className="w-3 h-3" /> Directions
                                         </button>
-                                        <button onClick={() => openGoogleMapsPage(ph.name, ph.lat, ph.lon)} className="text-xs bg-blue-500 text-white px-3 py-1 rounded-full hover:bg-blue-600 transition-colors flex items-center gap-1">
-                                            <ExternalLink className="w-3 h-3" /> Google Maps
+                                        <button onClick={() => openGoogleMapsPage(ph.name, ph.lat, ph.lon)} className="text-xs bg-blue-500 text-white px-3 py-1.5 rounded-full hover:bg-blue-600 transition-colors flex items-center justify-center gap-1">
+                                            <ExternalLink className="w-3 h-3" /> View on Google Maps
                                         </button>
                                     </div>
                                 </div>
@@ -534,16 +534,16 @@ const NearbyPharmacyMap: React.FC = () => {
                                         )}
                                     </div>
                                     {/* Action buttons */}
-                                    <div className="flex items-center gap-2 mt-2">
+                                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 mt-2">
                                         <button
                                             onClick={() => openGoogleMapsPage(ph.name, ph.lat, ph.lon)}
-                                            className="text-[11px] bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/40 px-2.5 py-1 rounded-full font-medium flex items-center gap-1 transition-colors"
+                                            className="text-[10px] sm:text-[11px] bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/40 px-2.5 py-1.5 sm:py-1 rounded-full font-medium flex items-center justify-center sm:justify-start gap-1 transition-colors"
                                         >
                                             <ExternalLink className="w-3 h-3" /> View on Google Maps
                                         </button>
                                         <button
                                             onClick={() => openDirections(ph.lat, ph.lon)}
-                                            className="text-[11px] bg-teal-50 dark:bg-teal-900/20 text-teal-600 dark:text-teal-400 hover:bg-teal-100 dark:hover:bg-teal-900/40 px-2.5 py-1 rounded-full font-medium flex items-center gap-1 transition-colors"
+                                            className="text-[10px] sm:text-[11px] bg-teal-50 dark:bg-teal-900/20 text-teal-600 dark:text-teal-400 hover:bg-teal-100 dark:hover:bg-teal-900/40 px-2.5 py-1.5 sm:py-1 rounded-full font-medium flex items-center justify-center sm:justify-start gap-1 transition-colors"
                                         >
                                             <Navigation className="w-3 h-3" /> Get Directions
                                         </button>

@@ -20,6 +20,27 @@
   .glass-bubble-ai {
     @apply bg-white text-gray-800 border border-gray-100 shadow-sm;
   }
+
+  /* Neumorphic Utilities */
+  .neumorphic-flat {
+    background: #f8fafc;
+    box-shadow: 8px 8px 16px #e2e8f0, -8px -8px 16px #ffffff;
+    border-radius: 20px;
+    border: 1px solid rgba(255,255,255,0.4);
+  }
+
+  .neumorphic-pressed {
+    background: #f8fafc;
+    box-shadow: inset 6px 6px 12px #e2e8f0, inset -6px -6px 12px #ffffff;
+    border-radius: 20px;
+  }
+
+  .neumorphic-teal {
+    background: #f0fdfa;
+    box-shadow: 8px 8px 16px #ccfbf1, -8px -8px 16px #ffffff;
+    border-radius: 20px;
+    border: 1px solid rgba(255,255,255,0.4);
+  }
 }
 
 /* Custom Scrollbar */

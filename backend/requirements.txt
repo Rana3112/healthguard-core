@@ -7,3 +7,7 @@ pymongo
 gunicorn
 stripe
 twilio
+dnspython
+playwright
+groq
+certifi

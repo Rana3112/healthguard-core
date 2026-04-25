@@ -11,6 +11,11 @@ node_modules
 dist
 dist-ssr
 *.local
+*.tsbuildinfo
+.ruff_cache/
+.gradle/
+android/.gradle-user-home/
+android/.android-user-home/
 
 # Editor directories and files
 .vscode/*
@@ -32,3 +37,4 @@ venv/
 env/
 .env
 backend/.env
+backend/data/reminders*.json

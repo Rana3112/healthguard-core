@@ -205,8 +205,16 @@ def search_medicine_endpoint():
         search_cache.set(cache_key, results, ttl_seconds=1800)
 
         if results.get("success"):
+            cheapest = results.get("cheapest") or {}
+            cheapest_price = cheapest.get("price")
+            cheapest_platform = cheapest.get("platform", "N/A")
+            cheapest_log = (
+                f"{cheapest_platform} {cheapest_price:.2f}"
+                if isinstance(cheapest_price, (int, float))
+                else cheapest_platform
+            )
             print(
-                f"  Found {results.get('total_results', 0)} results. Cheapest: {results.get('cheapest', {}).get('price_display', 'N/A')}"
+                f"  Found {results.get('total_results', 0)} results. Cheapest: {cheapest_log}"
             )
         else:
             print(f"  Search failed: {results.get('error', 'Unknown')}")
@@ -983,13 +991,12 @@ def coach_chat():
 @app.route("/api/transcribe", methods=["POST"])
 def transcribe_audio():
     """Transcribe audio using NVIDIA's Whisper Large V3 API."""
-    nvidia_whisper_key = os.getenv(
-        "NVIDIA_WHISPER_API_KEY",
-        "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",
+    nvidia_whisper_key = os.getenv("NVIDIA_WHISPER_API_KEY") or os.getenv(
+        "NVIDIA_API_KEY"
     )
 
     if not nvidia_whisper_key:
-        return jsonify({"error": "NVIDIA_WHISPER_API_KEY not configured"}), 500
+        return jsonify({"error": "NVIDIA_WHISPER_API_KEY or NVIDIA_API_KEY not configured"}), 500
 
     if "audio" not in request.files:
         return jsonify({"error": "No audio file provided"}), 400
@@ -1325,7 +1332,7 @@ def stripe_webhook():
 
 
 # --- NVIDIA Kimi Deep Think Endpoint ---
-NVIDIA_DEEPTHINK_MODEL = "moonshotai/kimi-k1.5"
+NVIDIA_DEEPTHINK_MODEL = "nvidia/moonshotai/kimi-k2.5"
 NVIDIA_API_KEY = os.getenv("NVIDIA_API_KEY", "")
 
 
@@ -1340,7 +1347,7 @@ def nvidia_deepthink():
 
     # Build payload for Nvidia's OpenAI-compatible API
     nvidia_payload = {
-        "model": "moonshotai/kimi-k2.5",
+        "model": NVIDIA_DEEPTHINK_MODEL,
         "messages": messages,
         "temperature": 1,
         "top_p": 1,
@@ -1397,55 +1404,72 @@ def nvidia_deepthink():
 
 
 # ==================== VITALS REMINDER SYSTEM ====================
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
 from datetime import datetime, timedelta
+from pathlib import Path
 
-REMINDERS_FILE = "/tmp/reminders.json"
+DEFAULT_REMINDERS_FILE = Path(__file__).resolve().parent / "data" / "reminders.json"
+REMINDERS_FILE = os.getenv("REMINDERS_FILE", str(DEFAULT_REMINDERS_FILE))
+RESEND_API_URL = "https://api.resend.com/emails"
 
 
 def _load_reminders():
-    if os.path.exists(REMINDERS_FILE):
-        with open(REMINDERS_FILE, "r") as f:
-            return json.load(f)
+    try:
+        if os.path.exists(REMINDERS_FILE):
+            with open(REMINDERS_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+    except (OSError, json.JSONDecodeError) as e:
+        print(f"[Reminder] Failed to load reminders: {e}")
     return []
 
 
 def _save_reminders(reminders):
-    with open(REMINDERS_FILE, "w") as f:
+    reminder_path = Path(REMINDERS_FILE)
+    reminder_path.parent.mkdir(parents=True, exist_ok=True)
+    temp_path = reminder_path.with_suffix(f"{reminder_path.suffix}.tmp")
+    with open(temp_path, "w", encoding="utf-8") as f:
         json.dump(reminders, f, indent=2)
+    os.replace(temp_path, reminder_path)
 
 
 def send_email_notification(to_email, subject, body):
-    """Send email notification via SMTP."""
+    """Send email notification via Resend."""
     try:
-        smtp_host = os.getenv("SMTP_HOST", "smtp.gmail.com")
-        smtp_port = int(os.getenv("SMTP_PORT", "587"))
-        smtp_user = os.getenv("SMTP_USER", "")
-        smtp_pass = os.getenv("SMTP_PASS", "")
+        resend_api_key = os.getenv("RESEND_API_KEY", "")
+        resend_from = os.getenv(
+            "RESEND_FROM_EMAIL", "HealthGuard AI <onboarding@resend.dev>"
+        )
 
-        if not smtp_user or not smtp_pass:
+        if not resend_api_key:
             print(
-                f"[Reminder] SMTP not configured. Would send to {to_email}: {subject}"
+                f"[Reminder] Resend is not configured. Would send to {to_email}: {subject}"
             )
             return False
 
-        msg = MIMEMultipart()
-        msg["From"] = smtp_user
-        msg["To"] = to_email
-        msg["Subject"] = subject
-        msg.attach(MIMEText(body, "html"))
+        response = req.post(
+            RESEND_API_URL,
+            headers={
+                "Authorization": f"Bearer {resend_api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "from": resend_from,
+                "to": [to_email],
+                "subject": subject,
+                "html": body,
+            },
+            timeout=20,
+        )
 
-        server = smtplib.SMTP(smtp_host, smtp_port)
-        server.starttls()
-        server.login(smtp_user, smtp_pass)
-        server.send_message(msg)
-        server.quit()
-        print(f"[Reminder] Email sent to {to_email}")
+        if response.status_code not in (200, 202):
+            print(
+                f"[Reminder] Resend error {response.status_code}: {response.text[:300]}"
+            )
+            return False
+
+        print(f"[Reminder] Resend email sent to {to_email}")
         return True
     except Exception as e:
-        print(f"[Reminder] Email error: {e}")
+        print(f"[Reminder] Resend email error: {e}")
         return False
 
 
@@ -1506,48 +1530,82 @@ def send_whatsapp_notification(
 def check_and_send_reminders():
     """Check all reminders and send notifications for due ones."""
     reminders = _load_reminders()
-    now = datetime.now()
     updated = False
 
     for reminder in reminders:
         if reminder.get("sent"):
             continue
 
-        due_date = datetime.fromisoformat(reminder["due_date"])
+        try:
+            due_date = datetime.fromisoformat(reminder["due_date"])
+        except (KeyError, TypeError, ValueError) as e:
+            print(f"[Reminder] Invalid due date for reminder {reminder.get('id')}: {e}")
+            continue
+
+        now = datetime.now(due_date.tzinfo) if due_date.tzinfo else datetime.now()
         if now >= due_date:
             email = reminder.get("email", "")
             phone = reminder.get("phone", "")
             interval = reminder.get("interval_label", "your scheduled time")
+            sent_any = False
+            attempted_delivery = False
 
             # Send email
             if email:
-                subject = "HealthGuard AI - Vitals Update Reminder"
-                body = f"""
-                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                    <div style="background: linear-gradient(135deg, #0D9488, #10B981); padding: 30px; border-radius: 12px 12px 0 0;">
-                        <h1 style="color: white; margin: 0;">HealthGuard AI</h1>
-                        <p style="color: rgba(255,255,255,0.8); margin-top: 8px;">Vitals Update Reminder</p>
-                    </div>
-                    <div style="padding: 24px; background: #f8fafc; border-radius: 0 0 12px 12px;">
-                        <p style="font-size: 16px; color: #334155;">Hello!</p>
-                        <p style="font-size: 14px; color: #64748b;">
-                            It's been {interval} since you last logged your health vitals.
-                            Keeping your vitals up to date helps our AI provide better, personalized health advice.
-                        </p>
-                        <div style="background: white; padding: 16px; border-radius: 8px; margin: 16px 0; border-left: 4px solid #0D9488;">
-                            <p style="margin: 0; font-weight: bold; color: #0D9488;">Action Required:</p>
-                            <p style="margin: 8px 0 0 0; color: #334155;">Open HealthGuard AI and update your vitals in the Health Dashboard.</p>
+                attempted_delivery = True
+                if reminder.get("type") == "general":
+                    reminder_text = reminder.get("reminder_text", "your reminder")
+                    reminder_time = reminder.get("reminder_time") or due_date.strftime("%I:%M %p")
+                    subject = "HealthGuard AI - Reminder"
+                    body = f"""
+                    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                        <div style="background: linear-gradient(135deg, #8B5CF6, #EC4899); padding: 30px; border-radius: 12px 12px 0 0;">
+                            <h1 style="color: white; margin: 0;">HealthGuard AI</h1>
+                            <p style="color: rgba(255,255,255,0.8); margin-top: 8px;">Reminder</p>
                         </div>
-                        <p style="font-size: 12px; color: #94a3b8; margin-top: 24px;">
-                            This is an automated reminder from HealthGuard AI. You can manage your reminders in Settings.
-                        </p>
+                        <div style="padding: 24px; background: #f8fafc; border-radius: 0 0 12px 12px;">
+                            <p style="font-size: 16px; color: #334155;">Hello!</p>
+                            <p style="font-size: 14px; color: #64748b;">This is your scheduled reminder.</p>
+                            <div style="background: white; padding: 16px; border-radius: 8px; margin: 16px 0; border-left: 4px solid #8B5CF6;">
+                                <p style="margin: 0; font-weight: bold; color: #8B5CF6;">Reminder Details</p>
+                                <p style="margin: 8px 0 0 0; color: #334155;">{reminder_text}</p>
+                                <p style="margin: 8px 0 0 0; color: #64748b;">Scheduled time: {reminder_time}</p>
+                            </div>
+                            <p style="font-size: 12px; color: #94a3b8; margin-top: 24px;">
+                                This is an automated reminder from HealthGuard AI.
+                            </p>
+                        </div>
                     </div>
-                </div>
-                """
-                send_email_notification(email, subject, body)
+                    """
+                else:
+                    subject = "HealthGuard AI - Vitals Update Reminder"
+                    body = f"""
+                    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                        <div style="background: linear-gradient(135deg, #0D9488, #10B981); padding: 30px; border-radius: 12px 12px 0 0;">
+                            <h1 style="color: white; margin: 0;">HealthGuard AI</h1>
+                            <p style="color: rgba(255,255,255,0.8); margin-top: 8px;">Vitals Update Reminder</p>
+                        </div>
+                        <div style="padding: 24px; background: #f8fafc; border-radius: 0 0 12px 12px;">
+                            <p style="font-size: 16px; color: #334155;">Hello!</p>
+                            <p style="font-size: 14px; color: #64748b;">
+                                It's been {interval} since you last logged your health vitals.
+                                Keeping your vitals up to date helps our AI provide better, personalized health advice.
+                            </p>
+                            <div style="background: white; padding: 16px; border-radius: 8px; margin: 16px 0; border-left: 4px solid #0D9488;">
+                                <p style="margin: 0; font-weight: bold; color: #0D9488;">Action Required:</p>
+                                <p style="margin: 8px 0 0 0; color: #334155;">Open HealthGuard AI and update your vitals in the Health Dashboard.</p>
+                            </div>
+                            <p style="font-size: 12px; color: #94a3b8; margin-top: 24px;">
+                                This is an automated reminder from HealthGuard AI. You can manage your reminders in Settings.
+                            </p>
+                        </div>
+                    </div>
+                    """
+                sent_any = send_email_notification(email, subject, body) or sent_any
 
             # Send WhatsApp
             if phone:
+                attempted_delivery = True
                 # Use template for business-initiated conversation
                 due_date = datetime.fromisoformat(reminder["due_date"])
                 formatted_date = due_date.strftime("%m/%d")
@@ -1557,16 +1615,17 @@ def check_and_send_reminders():
                     "content_sid": "HXb5b62575e6e4ff6129ad7c8efe1f983e",  # Appointment Reminders template
                     "variables": {"1": formatted_date, "2": formatted_time},
                 }
-                send_whatsapp_notification(
+                sent_any = send_whatsapp_notification(
                     phone,
                     None,
                     use_template=True,
                     template_variables=template_variables,
-                )
+                ) or sent_any
 
-            reminder["sent"] = True
-            reminder["sent_at"] = now.isoformat()
-            updated = True
+            if sent_any or not attempted_delivery:
+                reminder["sent"] = True
+                reminder["sent_at"] = now.isoformat()
+                updated = True
 
     if updated:
         _save_reminders(reminders)
@@ -1661,6 +1720,86 @@ def test_reminder():
     return jsonify({"success": True, "results": results})
 
 
+@app.route("/api/email/medicine-reminder", methods=["POST"])
+def send_medicine_reminder_email():
+    """Send an immediate medicine reminder email through Resend."""
+    data = request.json or {}
+    email = data.get("email") or data.get("toEmail", "")
+    medicine_name = data.get("medicine_name") or data.get("medicineName", "")
+    reminder_time = data.get("reminder_time") or data.get("reminderTime", "")
+    user_name = data.get("user_name") or data.get("userName", "User")
+
+    if not email:
+        return jsonify({"success": False, "error": "Email is required"}), 400
+    if not medicine_name:
+        return jsonify({"success": False, "error": "Medicine name is required"}), 400
+
+    subject = f"HealthGuard AI - Time to take {medicine_name}"
+    body = f"""
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background: linear-gradient(135deg, #0D9488, #10B981); padding: 30px; border-radius: 12px 12px 0 0;">
+            <h1 style="color: white; margin: 0;">HealthGuard AI</h1>
+            <p style="color: rgba(255,255,255,0.8); margin-top: 8px;">Medicine Reminder</p>
+        </div>
+        <div style="padding: 24px; background: #f8fafc; border-radius: 0 0 12px 12px;">
+            <p style="font-size: 16px; color: #334155;">Hello {user_name},</p>
+            <p style="font-size: 14px; color: #64748b;">It's time to take your medication.</p>
+            <div style="background: white; padding: 16px; border-radius: 8px; margin: 16px 0; border-left: 4px solid #0D9488;">
+                <p style="margin: 0; font-weight: bold; color: #0D9488;">{medicine_name}</p>
+                <p style="margin: 8px 0 0 0; color: #334155;">Scheduled time: {reminder_time or "now"}</p>
+            </div>
+            <p style="font-size: 12px; color: #94a3b8; margin-top: 24px;">
+                This is an automated reminder from HealthGuard AI.
+            </p>
+        </div>
+    </div>
+    """
+
+    sent = send_email_notification(email, subject, body)
+    status = 200 if sent else 503
+    return jsonify({"success": sent, "email": sent}), status
+
+
+@app.route("/api/email/health-check", methods=["POST"])
+def send_health_check_email():
+    """Send an immediate health-check reminder email through Resend."""
+    data = request.json or {}
+    email = data.get("email") or data.get("toEmail", "")
+    user_name = data.get("user_name") or data.get("userName", "User")
+    frequency = data.get("frequency", "scheduled")
+
+    if not email:
+        return jsonify({"success": False, "error": "Email is required"}), 400
+
+    subject = "HealthGuard AI - Health Check Reminder"
+    body = f"""
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background: linear-gradient(135deg, #0D9488, #10B981); padding: 30px; border-radius: 12px 12px 0 0;">
+            <h1 style="color: white; margin: 0;">HealthGuard AI</h1>
+            <p style="color: rgba(255,255,255,0.8); margin-top: 8px;">Health Check Reminder</p>
+        </div>
+        <div style="padding: 24px; background: #f8fafc; border-radius: 0 0 12px 12px;">
+            <p style="font-size: 16px; color: #334155;">Hello {user_name},</p>
+            <p style="font-size: 14px; color: #64748b;">
+                This is your {frequency} reminder to log your health vitals.
+                Keeping vitals up to date helps HealthGuard provide better guidance.
+            </p>
+            <div style="background: white; padding: 16px; border-radius: 8px; margin: 16px 0; border-left: 4px solid #0D9488;">
+                <p style="margin: 0; font-weight: bold; color: #0D9488;">Action Required</p>
+                <p style="margin: 8px 0 0 0; color: #334155;">Open HealthGuard AI and update your vitals.</p>
+            </div>
+            <p style="font-size: 12px; color: #94a3b8; margin-top: 24px;">
+                This is an automated reminder from HealthGuard AI.
+            </p>
+        </div>
+    </div>
+    """
+
+    sent = send_email_notification(email, subject, body)
+    status = 200 if sent else 503
+    return jsonify({"success": sent, "email": sent}), status
+
+
 @app.route("/api/general-reminder", methods=["POST"])
 def create_general_reminder():
     """Create a general reminder (not just for vitals)."""
@@ -1703,6 +1842,8 @@ def create_general_reminder():
         reminders.append(reminder)
         _save_reminders(reminders)
 
+        notification_results = {"email": None, "whatsapp": None}
+
         # Send confirmation email immediately if email provided
         if email:
             formatted_date = due_date.strftime("%A, %B %d, %Y")
@@ -1734,7 +1875,7 @@ def create_general_reminder():
                 </div>
             </div>
             """
-            send_email_notification(email, subject, body)
+            notification_results["email"] = send_email_notification(email, subject, body)
 
         # Send WhatsApp confirmation if phone provided
         if phone:
@@ -1762,14 +1903,20 @@ def create_general_reminder():
                 "content_sid": "HXb5b62575e6e4ff6129ad7c8efe1f983e",  # Appointment Reminders template
                 "variables": {"1": formatted_date, "2": formatted_time},
             }
-            send_whatsapp_notification(
+            notification_results["whatsapp"] = send_whatsapp_notification(
                 phone, None, use_template=True, template_variables=template_variables
             )
 
         print(
             f"[General Reminder] Created: {reminder_text[:50]}... for {email or phone}, due: {due_date.strftime('%Y-%m-%d %H:%M')}"
         )
-        return jsonify({"success": True, "reminder": reminder})
+        return jsonify(
+            {
+                "success": True,
+                "reminder": reminder,
+                "notifications": notification_results,
+            }
+        )
 
     except Exception as e:
         print(f"[General Reminder] Error: {e}")

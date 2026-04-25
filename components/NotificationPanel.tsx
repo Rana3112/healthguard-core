@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Bell, X, Clock, Heart, Pill, Activity, CheckCircle, Trash2, Mail } from 'lucide-react';
 import { getNotificationSettings } from './SettingsPanel';
-import { sendReminderEmail, sendHealthCheckEmail, isEmailJSConfigured } from '../services/emailService';
+import { sendReminderEmail, sendHealthCheckEmail } from '../services/emailService';
+import { getBackendUrl } from '../src/lib/backendUrl';
 
 interface NotificationItem {
     id: string;
@@ -41,7 +42,7 @@ const NotificationPanel: React.FC<NotificationPanelProps> = ({ isOpen, onClose }
         if (!isOpen) return;
         const fetchReminders = async () => {
             try {
-                const backendUrl = (import.meta as any).env?.VITE_BACKEND_URL || 'https://healthguard-core-utkarshrana40-dev.apps.rm1.0a51.p1.openshiftapps.com';
+                const backendUrl = getBackendUrl();
                 const stored = localStorage.getItem('healthguard_user_email');
                 const email = stored || '';
                 if (!email) return;
@@ -98,7 +99,7 @@ const NotificationPanel: React.FC<NotificationPanelProps> = ({ isOpen, onClose }
                     new Notification(`💊 Time for ${r.name}`, { body: `Take your ${r.name} medication now.`, icon: '/favicon.ico' });
                 }
 
-                // Email notification via EmailJS
+                // Email notification via backend Resend service
                 if (settings.emailEnabled && r.email) {
                     sendReminderEmail({
                         toEmail: r.email,

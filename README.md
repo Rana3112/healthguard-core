@@ -191,7 +191,7 @@ Download the latest release: [app-release.apk](releases/download/v1.0.0/app-rele
 
 | Technology | Version | Purpose |
 |------------|---------|---------|
-| **EmailJS** | 4.4.1 | Email sending from frontend |
+| **Resend** | API | Email sending from backend |
 | **React Body Highlighter** | 2.0.5 | Body muscle highlighting for exercises |
 
 ---

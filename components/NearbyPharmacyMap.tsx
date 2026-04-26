@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { Loader2, MapPin, Navigation, ExternalLink, Phone, Clock, ChevronDown, ChevronUp, RefreshCw, Store } from 'lucide-react';
+import { getBackendUrl } from '../src/lib/backendUrl';
 
 // Fix Leaflet default marker icon issue with bundlers
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -30,7 +31,7 @@ const pharmacyIcon = new L.Icon({
 });
 
 interface Pharmacy {
-    id: number;
+    id: number | string;
     name: string;
     lat: number;
     lon: number;
@@ -39,6 +40,14 @@ interface Pharmacy {
     phone?: string;
     openingHours?: string;
     type?: string;
+    source?: string;
+    rating?: number;
+    userRatingsTotal?: number;
+    openNow?: boolean;
+}
+
+interface NearbyPharmacyMapProps {
+    searchQuery?: string;
 }
 
 function FitBounds({ pharmacies, userLat, userLon }: { pharmacies: Pharmacy[]; userLat: number; userLon: number }) {
@@ -208,7 +217,51 @@ async function reverseGeocode(lat: number, lon: number): Promise<string> {
     }
 }
 
-const NearbyPharmacyMap: React.FC = () => {
+function getFacilityLabel(query?: string): string {
+    const q = (query || '').toLowerCase();
+    if (/pediatrician|child/.test(q)) return 'pediatricians';
+    if (/dermatologist|skin/.test(q)) return 'dermatologists';
+    if (/dentist|dental/.test(q)) return 'dentists';
+    if (/ophthalmologist|eye/.test(q)) return 'eye specialists';
+    if (/cardiologist|heart/.test(q)) return 'cardiologists';
+    if (/gynecologist|gynaecologist|women/.test(q)) return 'gynecologists';
+    if (/orthopedic|orthopaedic|bone/.test(q)) return 'orthopedic doctors';
+    if (/physiotherapist|physio/.test(q)) return 'physiotherapists';
+    if (/lab|diagnostic|blood test/.test(q)) return 'diagnostic labs';
+    if (/hospital|emergency/.test(q)) return 'hospitals';
+    if (/clinic|doctor/.test(q)) return 'clinics and doctors';
+    if (/pharmacy|chemist|medical store|blood pressure|bp/.test(q)) return 'pharmacies and medical stores';
+    return 'medical facilities';
+}
+
+async function searchGooglePlaces(lat: number, lon: number, query?: string): Promise<{ results: Pharmacy[]; radius: number; source: string } | null> {
+    try {
+        const response = await fetch(`${getBackendUrl()}/api/nearby-medical`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                lat,
+                lon,
+                query: query || 'medical facilities',
+                max_radius_m: 100000,
+            }),
+        });
+        const data = await response.json();
+        if (!response.ok || !data.success) {
+            throw new Error(data.error || 'Google Places search failed');
+        }
+        return {
+            results: (data.results || []).sort((a: Pharmacy, b: Pharmacy) => a.distance - b.distance),
+            radius: data.radius || 100000,
+            source: data.source || 'Google Places',
+        };
+    } catch (error) {
+        console.warn('[PharmacyMap] Google Places search failed, falling back:', error);
+        return null;
+    }
+}
+
+const NearbyPharmacyMap: React.FC<NearbyPharmacyMapProps> = ({ searchQuery }) => {
     const [status, setStatus] = useState<'locating' | 'searching' | 'done' | 'error'>('locating');
     const [pharmacies, setPharmacies] = useState<Pharmacy[]>([]);
     const [userPos, setUserPos] = useState<{ lat: number; lon: number } | null>(null);
@@ -218,7 +271,8 @@ const NearbyPharmacyMap: React.FC = () => {
     const [errorMsg, setErrorMsg] = useState('');
     const [showAll, setShowAll] = useState(false);
     const maxRadius = 100000; // 100km cap
-    const CACHE_KEY = 'healthguard_pharmacy_cache';
+    const facilityLabel = getFacilityLabel(searchQuery);
+    const CACHE_KEY = `healthguard_pharmacy_cache_${(searchQuery || 'medical').toLowerCase().replace(/[^a-z0-9]+/g, '_')}`;
     const CACHE_TTL = 60 * 60 * 1000; // 1 hour
     const startLocationSearch = () => {
         setStatus('locating');
@@ -233,7 +287,7 @@ const NearbyPharmacyMap: React.FC = () => {
         navigator.geolocation.getCurrentPosition(
             (pos) => {
                 const loc = { lat: pos.coords.latitude, lon: pos.coords.longitude };
-                console.log(`[PharmacyMap] Got location: ${loc.lat}, ${loc.lon}`);
+                console.log(`[PharmacyMap] Got location: ${loc.lat}, ${loc.lon}`, searchQuery || '');
                 setUserPos(loc);
                 setStatus('searching');
                 // Fetch location name in parallel
@@ -283,7 +337,18 @@ const NearbyPharmacyMap: React.FC = () => {
             setSearchRadius(radius);
             setStatus('searching');
 
-            // Step 1: Try Overpass API
+            // Step 1: Try Google Places via backend. This keeps the API key out of the Android APK.
+            const googleResults = await searchGooglePlaces(lat, lon, searchQuery);
+            if (googleResults && googleResults.results.length > 0) {
+                setSearchSource(googleResults.source);
+                setPharmacies(googleResults.results);
+                setSearchRadius(googleResults.radius);
+                setStatus('done');
+                saveToCache(googleResults.results, { lat, lon }, googleResults.radius, googleResults.source);
+                return;
+            }
+
+            // Step 2: Fall back to Overpass API
             let results = await searchOverpass(lat, lon, radius);
 
             if (results.length > 0) {
@@ -312,7 +377,7 @@ const NearbyPharmacyMap: React.FC = () => {
                 }
             }
 
-            // Step 2: Overpass found nothing, try Nominatim text search
+            // Step 3: Overpass found nothing, try Nominatim text search
             console.log('[PharmacyMap] Overpass empty, trying Nominatim fallback...');
             setSearchSource('Nominatim');
             results = await searchNominatim(lat, lon, maxRadius / 1000);
@@ -326,7 +391,7 @@ const NearbyPharmacyMap: React.FC = () => {
         } catch (err: any) {
             console.error('[PharmacyMap] Search failed:', err);
             setStatus('error');
-            setErrorMsg(`Failed to search for pharmacies: ${err.message || 'Unknown error'}`);
+            setErrorMsg(`Failed to search for ${facilityLabel}: ${err.message || 'Unknown error'}`);
         }
     };
 
@@ -393,7 +458,7 @@ const NearbyPharmacyMap: React.FC = () => {
                         <Loader2 className="w-5 h-5 animate-spin text-teal-500" />
                     </div>
                     <div>
-                        <p className="font-semibold text-sm">Searching for pharmacies{locationName ? ` near ${locationName}` : ''}...</p>
+                        <p className="font-semibold text-sm">Searching for {facilityLabel}{locationName ? ` near ${locationName}` : ''}...</p>
                         <p className="text-xs text-slate-400 mt-0.5">
                             Scanning within {(searchRadius / 1000).toFixed(1)} km radius
                             {searchRadius > 3000 && ' (expanding search area)'}
@@ -410,7 +475,7 @@ const NearbyPharmacyMap: React.FC = () => {
                 <div className="flex items-start gap-3 text-red-600 dark:text-red-400">
                     <MapPin className="w-5 h-5 flex-shrink-0 mt-0.5" />
                     <div className="flex-1">
-                        <p className="font-semibold text-sm">Could not find pharmacies</p>
+                        <p className="font-semibold text-sm">Could not find {facilityLabel}</p>
                         <p className="text-xs text-red-400 mt-0.5">{errorMsg}</p>
                         <button
                             onClick={handleRetry}
@@ -494,7 +559,7 @@ const NearbyPharmacyMap: React.FC = () => {
             {pharmacies.length === 0 ? (
                 <div className="p-5 text-center">
                     <Store className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-                    <p className="text-sm text-slate-500 font-medium">No pharmacies found within {(searchRadius / 1000).toFixed(0)} km</p>
+                    <p className="text-sm text-slate-500 font-medium">No {facilityLabel} found within {(searchRadius / 1000).toFixed(0)} km</p>
                     <p className="text-xs text-slate-400 mt-1">This area may have limited map data coverage</p>
                     <button onClick={handleRetry} className="mt-3 text-xs text-teal-600 hover:text-teal-800 font-semibold flex items-center gap-1 mx-auto">
                         <RefreshCw className="w-3.5 h-3.5" /> Search Again
@@ -566,7 +631,7 @@ const NearbyPharmacyMap: React.FC = () => {
                             {showAll ? (
                                 <><ChevronUp className="w-3.5 h-3.5" /> Show Less</>
                             ) : (
-                                <><ChevronDown className="w-3.5 h-3.5" /> Show All {pharmacies.length} Pharmacies</>
+                                <><ChevronDown className="w-3.5 h-3.5" /> Show All {pharmacies.length} Results</>
                             )}
                         </button>
                     )}

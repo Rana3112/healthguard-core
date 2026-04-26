@@ -1,5 +1,6 @@
 import os
 import json
+import math
 import time
 import threading
 from flask import Flask, request, jsonify, send_file, redirect
@@ -60,6 +61,7 @@ def _cache_key(prefix, payload):
 search_cache = TTLCache(max_entries=128)
 workout_cache = TTLCache(max_entries=128)
 interaction_cache = TTLCache(max_entries=128)
+GOOGLE_PLACES_TEXT_SEARCH_URL = "https://maps.googleapis.com/maps/api/place/textsearch/json"
 
 
 def _response_json_and_status(response):
@@ -171,6 +173,194 @@ def health_check():
 def health():
     """Alternative health check endpoint."""
     return jsonify({"status": "ok"})
+
+
+# --- Google Places Medical Location Search ---
+def _haversine_km(lat1, lon1, lat2, lon2):
+    radius_km = 6371
+    d_lat = math.radians(lat2 - lat1)
+    d_lon = math.radians(lon2 - lon1)
+    a = (
+        math.sin(d_lat / 2) ** 2
+        + math.cos(math.radians(lat1))
+        * math.cos(math.radians(lat2))
+        * math.sin(d_lon / 2) ** 2
+    )
+    return radius_km * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
+
+def _offset_point(lat, lon, distance_km, bearing_deg):
+    radius_km = 6371
+    bearing = math.radians(bearing_deg)
+    lat1 = math.radians(lat)
+    lon1 = math.radians(lon)
+    angular_distance = distance_km / radius_km
+
+    lat2 = math.asin(
+        math.sin(lat1) * math.cos(angular_distance)
+        + math.cos(lat1) * math.sin(angular_distance) * math.cos(bearing)
+    )
+    lon2 = lon1 + math.atan2(
+        math.sin(bearing) * math.sin(angular_distance) * math.cos(lat1),
+        math.cos(angular_distance) - math.sin(lat1) * math.sin(lat2),
+    )
+
+    return math.degrees(lat2), math.degrees(lon2)
+
+
+def _medical_search_term(query):
+    q = _normalize_text(query)
+    if any(term in q for term in ["pediatrician", "child doctor", "children"]):
+        return "pediatrician"
+    if any(term in q for term in ["dermatologist", "skin"]):
+        return "dermatologist"
+    if any(term in q for term in ["cardiologist", "heart"]):
+        return "cardiologist"
+    if any(term in q for term in ["ophthalmologist", "eye"]):
+        return "ophthalmologist"
+    if any(term in q for term in ["dentist", "dental"]):
+        return "dentist"
+    if any(term in q for term in ["gynecologist", "gynaecologist", "women"]):
+        return "gynecologist"
+    if any(term in q for term in ["orthopedic", "orthopaedic", "bone"]):
+        return "orthopedic doctor"
+    if any(term in q for term in ["physiotherapist", "physio"]):
+        return "physiotherapist"
+    if any(term in q for term in ["lab", "diagnostic", "blood test", "test center"]):
+        return "diagnostic lab"
+    if any(term in q for term in ["hospital", "emergency"]):
+        return "hospital"
+    if any(term in q for term in ["clinic", "doctor"]):
+        return "clinic doctor"
+    if any(term in q for term in ["pharmacy", "chemist", "medical store", "bp", "blood pressure"]):
+        return "pharmacy medical store"
+    return query.strip() or "medical facilities"
+
+
+def _google_places_text_search(api_key, term, lat, lon, radius_m):
+    response = req.get(
+        GOOGLE_PLACES_TEXT_SEARCH_URL,
+        params={
+            "query": term,
+            "location": f"{lat},{lon}",
+            "radius": min(int(radius_m), 50000),
+            "key": api_key,
+        },
+        timeout=15,
+    )
+    data = response.json()
+    status = data.get("status")
+    if status not in ("OK", "ZERO_RESULTS"):
+        return [], data.get("error_message") or status or "Google Places search failed"
+    return data.get("results", []), None
+
+
+def _format_google_place(place, user_lat, user_lon):
+    location = place.get("geometry", {}).get("location", {})
+    lat = location.get("lat")
+    lon = location.get("lng")
+    if lat is None or lon is None:
+        return None
+
+    return {
+        "id": place.get("place_id"),
+        "placeId": place.get("place_id"),
+        "name": place.get("name", "Medical Facility"),
+        "lat": lat,
+        "lon": lon,
+        "distance": _haversine_km(user_lat, user_lon, lat, lon),
+        "address": place.get("formatted_address") or place.get("vicinity"),
+        "rating": place.get("rating"),
+        "userRatingsTotal": place.get("user_ratings_total"),
+        "openNow": place.get("opening_hours", {}).get("open_now"),
+        "type": ", ".join(place.get("types", [])[:3]),
+        "source": "Google Places",
+    }
+
+
+@app.route("/api/nearby-medical", methods=["POST"])
+def nearby_medical_locations():
+    """Find nearby medical facilities using Google Places from the backend."""
+    data = request.json or {}
+    query = data.get("query", "medical facilities")
+    api_key = os.getenv("GOOGLE_MAPS_API_KEY", "")
+
+    if not api_key:
+        return jsonify({"success": False, "error": "GOOGLE_MAPS_API_KEY not configured"}), 500
+
+    try:
+        lat = float(data.get("lat"))
+        lon = float(data.get("lon"))
+        max_radius_m = min(int(data.get("max_radius_m", 100000)), 100000)
+    except (TypeError, ValueError):
+        return jsonify({"success": False, "error": "lat and lon are required"}), 400
+
+    term = _medical_search_term(query)
+    cache_key = _cache_key(
+        "nearby-medical",
+        {
+            "query": _normalize_text(term),
+            "lat": round(lat, 3),
+            "lon": round(lon, 3),
+            "max_radius_m": max_radius_m,
+        },
+    )
+    cached = search_cache.get(cache_key)
+    if cached is not None:
+        return jsonify(cached)
+
+    seen = set()
+    results = []
+    search_radius_used = 0
+    search_error = None
+
+    # Google Places legacy text search accepts up to 50km radius. Search nearby
+    # first, then fan out from the user location to cover up to roughly 100km.
+    search_points = [(lat, lon, 5000), (lat, lon, 15000), (lat, lon, 30000), (lat, lon, 50000)]
+    if max_radius_m > 50000:
+        for bearing in (0, 45, 90, 135, 180, 225, 270, 315):
+            p_lat, p_lon = _offset_point(lat, lon, 50, bearing)
+            search_points.append((p_lat, p_lon, 50000))
+
+    for search_lat, search_lon, radius_m in search_points:
+        if radius_m > max_radius_m and search_lat == lat and search_lon == lon:
+            continue
+
+        places, error = _google_places_text_search(api_key, term, search_lat, search_lon, radius_m)
+        if error:
+            search_error = error
+            break
+
+        for place in places:
+            place_id = place.get("place_id")
+            if not place_id or place_id in seen:
+                continue
+
+            formatted = _format_google_place(place, lat, lon)
+            if not formatted or formatted["distance"] * 1000 > max_radius_m:
+                continue
+
+            seen.add(place_id)
+            results.append(formatted)
+
+        search_radius_used = max(search_radius_used, min(radius_m, max_radius_m))
+        if results and search_radius_used >= 5000:
+            break
+
+    if search_error:
+        return jsonify({"success": False, "error": search_error, "results": []}), 502
+
+    results.sort(key=lambda item: item["distance"])
+    payload = {
+        "success": True,
+        "query": query,
+        "searchTerm": term,
+        "source": "Google Places",
+        "radius": search_radius_used or max_radius_m,
+        "results": results[:20],
+    }
+    search_cache.set(cache_key, payload, ttl_seconds=900)
+    return jsonify(payload)
 
 
 # --- Removed /tts and /ocr Endpoints (Now using Gemini Cloud Voice) ---

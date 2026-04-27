@@ -1,17 +1,9 @@
 import React, { useState } from 'react';
 import { ShieldCheck, Plus, X, Loader2, CheckCircle, AlertTriangle, XCircle, Lock, Search, Pill } from 'lucide-react';
+import { getOpenRouterApiKey } from '../src/lib/apiKeys';
 
 // OpenRouter API for GPT-OSS-120B
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
-
-const getEnvVar = (key: string): string | undefined => {
-    const viteEnv = (import.meta as any)?.env?.[key];
-    if (viteEnv) return viteEnv;
-    if (typeof process !== 'undefined') {
-        return (process as any)?.env?.[key];
-    }
-    return undefined;
-};
 
 interface Interaction {
     drug_a: string;
@@ -61,7 +53,7 @@ You MUST respond in this exact JSON format:
 Analyze ALL possible pairs of medicines provided. Be thorough but concise.`;
 
 async function checkDrugInteractionsWithAI(medicines: string[]): Promise<InteractionResult> {
-    const apiKey = getEnvVar('VITE_OPENROUTER_API_KEY') || getEnvVar('OPENROUTER_API_KEY');
+    const apiKey = getOpenRouterApiKey();
     
     if (!apiKey) {
         throw new Error('OpenRouter API key is missing. Please configure VITE_OPENROUTER_API_KEY.');
@@ -251,13 +243,13 @@ const DrugInteractionChecker: React.FC = () => {
                             const cfg = severityConfig[inter.severity] || severityConfig.safe;
                             return (
                                 <div key={i} className={`rounded-3xl border ${cfg.border} ${cfg.bg} p-4`}>
-                                    <div className="flex items-center justify-between mb-2">
-                                        <div className="flex items-center gap-1.5">
-                                            <span className="text-xs font-extrabold text-slate-800 dark:text-white">{inter.drug_a}</span>
+                                    <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                                        <div className="min-w-0 flex-1"><div className="grid grid-cols-[minmax(0,1fr),auto,minmax(0,1fr)] items-start gap-1.5 sm:flex sm:flex-wrap">
+                                            <span className="break-words text-xs font-extrabold text-slate-800 dark:text-white">{inter.drug_a}</span>
                                             <span className="text-[10px] text-slate-400">×</span>
-                                            <span className="text-xs font-extrabold text-slate-800 dark:text-white">{inter.drug_b}</span>
-                                        </div>
-                                        <span className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold ${cfg.badge}`}>
+                                            <span className="break-words text-xs font-extrabold text-slate-800 dark:text-white">{inter.drug_b}</span>
+                                        </div></div>
+                                        <span className={`inline-flex w-fit shrink-0 items-center gap-1 self-start rounded-full px-2 py-0.5 text-[9px] font-bold ${cfg.badge}`}>
                                             {cfg.icon} {cfg.label}
                                         </span>
                                     </div>

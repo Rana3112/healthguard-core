@@ -11,9 +11,12 @@
     "android": "npm run build && npx cap sync && npx cap open android"
   },
   "dependencies": {
+    "@capacitor-firebase/app": "^8.2.0",
+    "@capacitor-firebase/authentication": "^8.2.0",
     "@capacitor/android": "^8.1.0",
     "@capacitor/cli": "^8.1.0",
     "@capacitor/core": "^8.1.0",
+    "@capacitor/local-notifications": "^8.0.2",
     "@google/genai": "^1.38.0",
     "@google/generative-ai": "^0.24.1",
     "@langchain/core": "^0.3.26",

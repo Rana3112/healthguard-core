@@ -1,17 +1,33 @@
 import Groq from "groq-sdk";
 import { ChatMessage, MessageRole } from "../types";
+import { getGroqApiKey } from "../src/lib/apiKeys";
 
-const getEnvVar = (key: string): string | undefined => {
-    const viteEnv = (import.meta as any)?.env?.[key];
-    if (viteEnv) return viteEnv;
-    if (typeof process !== 'undefined') {
-        return (process as any)?.env?.[key];
-    }
-    return undefined;
-};
+const RESPONSE_FORMAT_INSTRUCTIONS = `
+CRITICAL INSTRUCTION: You MUST format ALL responses using strict Markdown.
+- Start health, fitness, and coaching answers with \`### Most Important\` followed by one **bold** sentence with the key takeaway.
+- Use \`###\` headings for each major section.
+- Use \`- \` bullet points for actions, precautions, symptoms, and next steps.
+- Use **bold** for warnings, medicine names, and critical actions.
+- Use *italics* for notes, monitoring advice, or softer guidance.
+- For medicines, food plans, workout sets, schedules, comparisons, or any structured data, you MUST use Markdown tables with \`|\` dividers.
+- DO NOT output plain text lists or fake tables separated only by spaces.
+- For health explanations after the intake/question flow, include visually useful sections:
+  - \`### Care Flow\` with 4 short steps: understand -> start care -> monitor -> seek help.
+  - \`### Simple Explanation\` explaining cause/effect in plain language.
+  - \`### Do First\` and \`### Seek Help If\` as short bullet lists.
+- Keep each bullet short enough for a mobile card.
+
+IMPORTANT: At the very end of your response, provide 4-5 short, relevant options for what the USER might say next.
+INCLUDE ACTIONABLE ITEMS if relevant (e.g., 'Order this product', 'Find a doctor nearby', 'Set a reminder').
+Format them exactly like this:
+>> suggested user reply 1
+>> suggested user reply 2
+>> suggested user reply 3
+>> suggested user reply 4
+>> suggested user reply 5`;
 
 const getGroqClient = (): Groq => {
-    const apiKey = getEnvVar('VITE_GROQ_API_KEY') || getEnvVar('GROQ_API_KEY');
+    const apiKey = getGroqApiKey();
 
     if (!apiKey) {
         throw new Error("Missing VITE_GROQ_API_KEY in frontend environment.");
@@ -38,7 +54,7 @@ export const sendMessageToGroq = async (
 
         // Convert history to Groq format
         const messages: any[] = [
-            { role: "system", content: systemInstruction + "\n\nCRITICAL INSTRUCTION: You MUST format ALL your responses using strict Markdown.\n- Use `### ` for headings.\n- Use `- ` for bullet points.\n- Use `**text**` for bold emphasis.\n- For any tabular data, you MUST use strict Markdown tables with `|` dividers (e.g., `| Column 1 | Column 2 |\n|---|---|`).\n- DO NOT output plain text lists or tables separated only by spaces/tabs.\n\nIMPORTANT: At the very end of your response, provide 4-5 short, relevant options for what the USER might say next. \nINCLUDE ACTIONABLE ITEMS if relevant (e.g., 'Order this product', 'Find a doctor nearby', 'Set a reminder').\nFormat them exactly like this:\n>> suggested user reply 1\n>> suggested user reply 2\n>> suggested user reply 3\n>> suggested user reply 4\n>> suggested user reply 5" },
+            { role: "system", content: `${systemInstruction}\n\n${RESPONSE_FORMAT_INSTRUCTIONS}` },
             ...history.filter(msg => msg.role !== MessageRole.SYSTEM).map(msg => ({
                 role: msg.role === MessageRole.USER ? "user" : "assistant",
                 content: msg.text

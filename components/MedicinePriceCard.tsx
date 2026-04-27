@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { MedicinePriceResult } from '../types';
 import { ExternalLink, Star, TrendingDown, ShoppingCart, Truck, Award, Bot, Loader2, CheckCircle2, XCircle, AlertTriangle } from 'lucide-react';
+import { getBackendUrl } from '../src/lib/backendUrl';
 
 interface MedicinePriceCardProps {
     query: string;
@@ -43,7 +44,7 @@ const MedicinePriceCard: React.FC<MedicinePriceCardProps> = ({ query, results, c
         setOrderSteps([]);
         setOrderStatus('running');
 
-        const BACKEND_URL = (import.meta as any).env?.VITE_BACKEND_URL || 'https://healthguard-backend-yo9a.onrender.com';
+        const BACKEND_URL = getBackendUrl();
         try {
             const response = await fetch(`${BACKEND_URL}/auto-order`, {
                 method: 'POST',

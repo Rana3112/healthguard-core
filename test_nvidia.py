@@ -1,7 +1,11 @@
 import requests
 import json
+import os
 
-api_key = "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"
+api_key = os.getenv("NVIDIA_API_KEY")
+if not api_key:
+    raise SystemExit("NVIDIA_API_KEY is required to run this test.")
+
 invoke_url = "https://integrate.api.nvidia.com/v1/chat/completions"
 
 headers = {

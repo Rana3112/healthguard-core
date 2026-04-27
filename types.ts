@@ -100,6 +100,7 @@ export interface ChatMessage {
     cheapest: MedicinePriceResult | null;
   };
   showPharmacyMap?: boolean;
+  locationQuery?: string;
   thinkingText?: string; // Kimi K2.5 reasoning/thinking content (shown in collapsible section)
   thinkingDuration?: number; // Seconds spent thinking
   timestamp?: number;

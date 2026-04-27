@@ -3,6 +3,8 @@ import { X, User, Sun, Moon, Monitor, Bell, Shield, LogOut, ChevronRight, Trash2
 import { useAuth } from '../src/context/AuthContext';
 import { logoutUser } from '../src/services/firebaseAuth';
 import { useNavigate } from 'react-router-dom';
+import { scheduleMedicineLocalNotification } from '../src/lib/localNotifications';
+import { upsertMedicineReminder } from '../src/lib/healthStore';
 
 // --- Types ---
 interface MedicineReminder {
@@ -84,7 +86,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose }) => {
         navigate('/');
     };
 
-    const addReminder = () => {
+    const addReminder = async () => {
         if (!newReminder.name.trim()) return;
         const reminder: MedicineReminder = {
             id: Date.now().toString(),
@@ -94,6 +96,17 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose }) => {
             enabled: true
         };
         setNotifSettings(prev => ({ ...prev, medicineReminders: [...prev.medicineReminders, reminder] }));
+        const healthReminder = upsertMedicineReminder({
+            title: `Take ${reminder.name}`,
+            time: reminder.time,
+            enabled: true,
+            email: reminder.email,
+            source: reminder.email ? 'both' : 'local',
+        });
+        const ids = await scheduleMedicineLocalNotification(healthReminder);
+        if (ids.length > 0) {
+            upsertMedicineReminder({ ...healthReminder, notificationIds: ids.map(String) });
+        }
         setNewReminder({ name: '', time: '08:00', email: user?.email || '' });
     };
 

@@ -1,18 +1,7 @@
 import { ClarificationCard, PatientState } from '../types';
+import { getGroqApiKey } from '../src/lib/apiKeys';
 
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
-
-const getEnvVar = (key: string): string | undefined => {
-    const viteEnv = (import.meta as any)?.env?.[key];
-    if (viteEnv) return viteEnv;
-    if (key === 'VITE_GROQ_API_KEY') {
-        return (import.meta as any)?.env?.VITE_GROQ_API_KEY || (import.meta as any)?.env?.GROQ_API_KEY || (typeof process !== 'undefined' ? (process as any)?.env?.VITE_GROQ_API_KEY : undefined) || (typeof process !== 'undefined' ? (process as any)?.env?.GROQ_API_KEY : undefined);
-    }
-    if (typeof process !== 'undefined') {
-        return (process as any)?.env?.[key];
-    }
-    return undefined;
-};
 
 const DEFAULT_FOLLOW_UPS = [
     'What symptoms should I monitor next?',
@@ -81,7 +70,7 @@ export const generateFollowUpQuestions = async (
     assistantResponse: string
 ): Promise<string[]> => {
     try {
-        const apiKey = getEnvVar('VITE_GROQ_API_KEY');
+        const apiKey = getGroqApiKey();
         
         if (!apiKey) {
             console.warn("Groq API key not found for follow-up questions. Using fallback.");

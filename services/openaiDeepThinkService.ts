@@ -1,16 +1,8 @@
 import { ChatMessage, MessageRole } from "../types";
+import { getBackendUrl } from "../src/lib/backendUrl";
+import { getOpenRouterApiKey } from "../src/lib/apiKeys";
 
-const BACKEND_URL = (import.meta as any).env?.VITE_BACKEND_URL || 'http://localhost:5001';
-const INVOKE_URL = `${BACKEND_URL}/api/nvidia-deepthink`;
-
-const getEnvVar = (key: string): string | undefined => {
-    const viteEnv = (import.meta as any)?.env?.[key];
-    if (viteEnv) return viteEnv;
-    if (typeof process !== 'undefined') {
-        return (process as any)?.env?.[key];
-    }
-    return undefined;
-};
+const INVOKE_URL = `${getBackendUrl()}/api/nvidia-deepthink`;
 
 export const sendMessageToOpenAI = async (
     history: ChatMessage[],
@@ -22,7 +14,7 @@ export const sendMessageToOpenAI = async (
     // Try NVIDIA Kimi K2.5 via backend first
     try {
         const messages: any[] = [
-            { role: "system", content: systemInstruction + "\n\nCRITICAL INSTRUCTION: You MUST format ALL your responses using strict Markdown.\n- Use `### ` for headings.\n- Use `- ` for bullet points.\n- Use `**text**` for bold emphasis." },
+            { role: "system", content: systemInstruction + "\n\nCRITICAL INSTRUCTION: You MUST format ALL your responses using strict Markdown.\n- Use `### ` for headings.\n- Use `- ` for bullet points.\n- Use `**text**` for bold emphasis.\n- For health explanations, include `### Care Flow`, `### Simple Explanation`, `### Do First`, and `### Seek Help If` sections with short mobile-friendly bullets." },
             ...history.filter(msg => msg.role !== MessageRole.SYSTEM).map(msg => ({
                 role: msg.role === MessageRole.USER ? "user" : "assistant",
                 content: msg.text
@@ -107,14 +99,14 @@ export const sendMessageToOpenAI = async (
         console.warn('[Max Deep Think] NVIDIA backend failed, falling back to OpenRouter:', backendError);
 
         // Fallback: Use a reasoning model via OpenRouter
-        const OPENROUTER_API_KEY = getEnvVar('VITE_OPENROUTER_API_KEY') || getEnvVar('OPENROUTER_API_KEY');
+        const OPENROUTER_API_KEY = getOpenRouterApiKey();
         
         if (!OPENROUTER_API_KEY) {
             throw new Error('Neither NVIDIA backend nor OpenRouter API key available for Max Deep Think');
         }
 
         const messages: any[] = [
-            { role: "system", content: systemInstruction + "\n\nCRITICAL INSTRUCTION: You MUST format ALL your responses using strict Markdown.\n- Use `### ` for headings.\n- Use `- ` for bullet points.\n- Use `**text**` for bold emphasis.\n\nProvide detailed step-by-step reasoning before your final answer." },
+            { role: "system", content: systemInstruction + "\n\nCRITICAL INSTRUCTION: You MUST format ALL your responses using strict Markdown.\n- Use `### ` for headings.\n- Use `- ` for bullet points.\n- Use `**text**` for bold emphasis.\n- For health explanations, include `### Care Flow`, `### Simple Explanation`, `### Do First`, and `### Seek Help If` sections with short mobile-friendly bullets.\n\nProvide detailed step-by-step reasoning before your final answer." },
             ...history.filter(msg => msg.role !== MessageRole.SYSTEM).map(msg => ({
                 role: msg.role === MessageRole.USER ? "user" : "assistant",
                 content: msg.text

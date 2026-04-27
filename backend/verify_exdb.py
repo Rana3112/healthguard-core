@@ -1,11 +1,17 @@
 
+import os
+
 import requests
 
 url = "https://exercisedb.p.rapidapi.com/exercises"
 querystring = {"limit":"10"}
+api_key = os.getenv("RAPIDAPI_KEY")
+
+if not api_key:
+    raise SystemExit("RAPIDAPI_KEY is required to verify ExerciseDB access.")
 
 headers = {
-	"x-rapidapi-key": "865a20209amshcc026b276b939a5p1f7177jsn597e7a6962bb",
+	"x-rapidapi-key": api_key,
 	"x-rapidapi-host": "exercisedb.p.rapidapi.com"
 }
 

@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import Groq from 'groq-sdk';
 import { Send, Mic, Image, Loader2, Sparkles, Activity, Pill, MapPin, Square, FileSearch, ShieldAlert, Zap, BrainCircuit, Eye, Bot, Lock, ArrowRight, MessageCircle, Home, Stethoscope, Clock, AlertTriangle, Thermometer, Apple, Calendar, Phone, PillIcon, Search } from 'lucide-react';
 import { sendMessageToAgent, ModelMode } from '../services/geminiService';
 import { ensureFollowUpQuestions, generateCardFromGraphSignal, generateFollowUpQuestions, sanitizeFollowUpQuestions } from '../services/followUpGenerator';
@@ -8,7 +9,9 @@ import { AgentAction, ChatMessage, ClarificationCard, ClarificationOption, Messa
 import { runClinicalGraphTurn } from '../src/agents/clinicalGraph';
 import { clearSession } from '../src/agents/patientSession';
 import { getBackendUrl } from '../src/lib/backendUrl';
+import { getGroqApiKey, getOpenRouterApiKey } from '../src/lib/apiKeys';
 import { requestMicrophoneWithSettingsPrompt, isMicrophoneSupported } from '../src/lib/permissions';
+import { scheduleOneTimeLocalNotification } from '../src/lib/localNotifications';
 
 const DIAGNOSIS_HEADERS = [
   'Aapki Taklif',
@@ -22,6 +25,54 @@ const DIAGNOSIS_HEADERS = [
 ];
 
 const REQUIRED_DIAGNOSIS_HEADERS = DIAGNOSIS_HEADERS.slice(0, 7);
+
+const AUDIO_MIME_CANDIDATES = [
+  'audio/webm;codecs=opus',
+  'audio/webm',
+  'audio/mp4',
+  'audio/ogg;codecs=opus',
+  'audio/wav',
+];
+
+const getPreferredRecordingMimeType = (): string | undefined => {
+  if (typeof MediaRecorder === 'undefined' || typeof MediaRecorder.isTypeSupported !== 'function') {
+    return undefined;
+  }
+
+  return AUDIO_MIME_CANDIDATES.find((mimeType) => MediaRecorder.isTypeSupported(mimeType));
+};
+
+const getAudioFileName = (mimeType: string | undefined): string => {
+  const normalized = (mimeType || '').toLowerCase();
+  if (normalized.includes('mp4')) return 'recording.m4a';
+  if (normalized.includes('ogg')) return 'recording.ogg';
+  if (normalized.includes('wav')) return 'recording.wav';
+  return 'recording.webm';
+};
+
+const transcribeWithGroqFallback = async (audioBlob: Blob, fileName: string): Promise<string> => {
+  const apiKey = getGroqApiKey();
+  if (!apiKey) {
+    throw new Error('Missing VITE_GROQ_API_KEY for client-side transcription fallback.');
+  }
+
+  const groq = new Groq({
+    apiKey,
+    dangerouslyAllowBrowser: true,
+  });
+  const audioFile = new File([audioBlob], fileName, {
+    type: audioBlob.type || 'audio/webm',
+  });
+
+  const transcription = await groq.audio.transcriptions.create({
+    file: audioFile,
+    model: 'whisper-large-v3-turbo',
+    response_format: 'json',
+    temperature: 0,
+  });
+
+  return transcription.text?.trim() || '';
+};
 
 const isStructuredDiagnosis = (text: string): boolean =>
   REQUIRED_DIAGNOSIS_HEADERS.every((header) => text.toLowerCase().includes(header.toLowerCase()));
@@ -487,7 +538,11 @@ const TextChatInterface: React.FC<TextChatInterfaceProps> = ({ dispatch, message
       }
 
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
+      const preferredMimeType = getPreferredRecordingMimeType();
+      const mediaRecorder = new MediaRecorder(
+        stream,
+        preferredMimeType ? { mimeType: preferredMimeType } : undefined
+      );
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
 
@@ -498,7 +553,9 @@ const TextChatInterface: React.FC<TextChatInterfaceProps> = ({ dispatch, message
       };
 
       mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        const audioBlob = new Blob(audioChunksRef.current, {
+          type: mediaRecorder.mimeType || preferredMimeType || 'audio/webm',
+        });
         await handleAudioUpload(audioBlob);
         stream.getTracks().forEach((track) => track.stop());
       };
@@ -529,22 +586,38 @@ const TextChatInterface: React.FC<TextChatInterfaceProps> = ({ dispatch, message
   const handleAudioUpload = async (audioBlob: Blob) => {
     setIsTranscribing(true);
     const formData = new FormData();
-    formData.append('audio', audioBlob, 'recording.webm');
+    const fileName = getAudioFileName(audioBlob.type);
+    formData.append('audio', audioBlob, fileName);
 
     try {
       const BACKEND_URL = getBackendUrl();
-      const response = await fetch(`${BACKEND_URL}/api/transcribe`, {
-        method: 'POST',
-        body: formData,
-      });
+      let transcript = '';
 
-      if (!response.ok) {
-        throw new Error('Transcription failed');
+      try {
+        const response = await fetch(`${BACKEND_URL}/api/transcribe`, {
+          method: 'POST',
+          body: formData,
+        });
+        const rawBody = await response.text();
+        const data = rawBody ? JSON.parse(rawBody) : {};
+
+        if (!response.ok) {
+          throw new Error(data.error || 'Backend transcription failed');
+        }
+
+        transcript = data.text?.trim() || '';
+        if (!transcript) {
+          throw new Error('Backend transcription returned empty text');
+        }
+      } catch (backendError) {
+        console.warn('Backend transcription failed; trying Groq fallback:', backendError);
+        transcript = await transcribeWithGroqFallback(audioBlob, fileName);
       }
 
-      const data = await response.json();
-      if (data.text) {
-        await handleSend(data.text);
+      if (transcript) {
+        await handleSend(transcript);
+      } else {
+        alert('I could not hear enough speech to transcribe. Please try recording again.');
       }
     } catch (error) {
       console.error('Error uploading audio:', error);
@@ -752,7 +825,7 @@ const TextChatInterface: React.FC<TextChatInterfaceProps> = ({ dispatch, message
       // Agent Mode: Direct SERP search for medicines and maps for locations
       if (activeMode === 'agent') {
         const BACKEND_URL = getBackendUrl();
-        const OPENROUTER_API_KEY = (import.meta as any).env?.VITE_OPENROUTER_API_KEY || (import.meta as any).env?.OPENROUTER_API_KEY;
+        const OPENROUTER_API_KEY = getOpenRouterApiKey();
         
         // Check agent sub-mode first (from floating buttons)
         const isLocationFromSubMode = agentSubMode === 'location';
@@ -831,6 +904,26 @@ const TextChatInterface: React.FC<TextChatInterfaceProps> = ({ dispatch, message
               month: 'long', 
               day: 'numeric' 
             });
+
+            const localReminderAt = new Date(reminderDate);
+            const parsedReminderTime = reminderTime.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i);
+            if (parsedReminderTime) {
+              let hour = Number(parsedReminderTime[1]);
+              const minute = Number(parsedReminderTime[2] || '0');
+              const ampm = parsedReminderTime[3]?.toLowerCase();
+              if (ampm === 'pm' && hour < 12) hour += 12;
+              if (ampm === 'am' && hour === 12) hour = 0;
+              localReminderAt.setHours(hour, minute, 0, 0);
+            }
+            if (localReminderAt.getTime() <= Date.now()) {
+              localReminderAt.setDate(localReminderAt.getDate() + 1);
+            }
+            scheduleOneTimeLocalNotification({
+              id: `agent_reminder_${Date.now()}`,
+              title: 'HealthGuard Reminder',
+              body: text,
+              at: localReminderAt,
+            }).catch(err => console.warn('[Agent Mode] Local notification schedule failed:', err));
             
             // Call backend API to create reminder and send confirmation email
             const userEmail = user?.email || '';
@@ -849,10 +942,14 @@ const TextChatInterface: React.FC<TextChatInterfaceProps> = ({ dispatch, message
                 
                 const reminderData = await reminderResponse.json();
                 if (reminderData.success) {
+                  const emailSent = reminderData.notifications?.email === true;
+                  const deliveryNote = emailSent
+                    ? `A confirmation email has been sent to ${userEmail}. You'll receive another reminder at the scheduled time.`
+                    : 'The reminder was saved, but email notification is not configured or could not be sent right now.';
                   const botMessage: ChatMessage = {
                     id: (Date.now() + 1).toString(),
                     role: MessageRole.MODEL,
-                    text: `✅ Your reminder has been set for **${formattedDate}** at **${reminderTime}**.\n\nA confirmation email has been sent to ${userEmail}. You'll receive another reminder at the scheduled time.`,
+                    text: `✅ Your reminder has been set for **${formattedDate}** at **${reminderTime}**.\n\n${deliveryNote}`,
                     timestamp: Date.now()
                   };
                   setMessages(prev => [...prev, botMessage]);

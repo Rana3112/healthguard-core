@@ -4,7 +4,7 @@ import {
     Mail, Lock, User, Phone, Eye, EyeOff, ArrowRight,
     Check, Activity, ShieldCheck, Heart, AlertCircle
 } from 'lucide-react';
-import { loginUser, signUpUser, loginWithGoogle, resetPassword } from '../services/firebaseAuth';
+import { loginUser, signUpUser, loginWithGoogle, resetPassword, completeGoogleRedirectSignIn } from '../services/firebaseAuth';
 import { useAuth } from '../context/AuthContext';
 
 const AuthPage: React.FC = () => {
@@ -25,6 +25,26 @@ const AuthPage: React.FC = () => {
     const [error, setError] = useState<string | null>(null);
     const [resetMessage, setResetMessage] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
+
+    useEffect(() => {
+        let cancelled = false;
+
+        const finishRedirectSignIn = async () => {
+            const { error: redirectError, user: redirectUser } = await completeGoogleRedirectSignIn();
+            if (cancelled) return;
+            if (redirectError) {
+                setError(redirectError);
+            } else if (redirectUser) {
+                navigate('/app');
+            }
+        };
+
+        finishRedirectSignIn();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [navigate]);
 
     // Toggle based on route or state
     useEffect(() => {
@@ -116,7 +136,7 @@ const AuthPage: React.FC = () => {
     };
 
     return (
-        <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex font-sans text-slate-900 dark:text-white">
+        <div className="h-dvh min-h-dvh overflow-y-auto lg:overflow-hidden bg-slate-50 dark:bg-slate-900 flex font-sans text-slate-900 dark:text-white">
 
             {/* --- Left Panel (Visual) - Hidden on Mobile --- */}
             <div className="hidden lg:flex w-1/2 relative overflow-hidden bg-gradient-to-br from-[#0D9488] to-[#065F56] p-12 flex-col justify-between text-white">
@@ -186,7 +206,7 @@ const AuthPage: React.FC = () => {
             </div>
 
             {/* --- Right Panel (Form) --- */}
-            <div className="flex-1 flex flex-col justify-center px-6 py-12 lg:px-24 bg-white dark:bg-slate-950 overflow-y-auto">
+            <div className="flex-1 min-h-full lg:h-full flex flex-col justify-start lg:justify-center px-6 pt-8 pb-[calc(2rem+env(safe-area-inset-bottom))] lg:py-12 lg:px-24 bg-white dark:bg-slate-950 overflow-visible lg:overflow-y-auto">
                 <div className="max-w-md w-full mx-auto">
 
                     {/* Mobile Header */}

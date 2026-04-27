@@ -10,6 +10,12 @@ import { ClarificationCard, ClarificationOption } from '../types';
 import { TextInputFlashcard } from './TextChatInterface';
 import Model from 'react-body-highlighter';
 import { getBackendUrl } from '../src/lib/backendUrl';
+import {
+    getBundledEquipment,
+    getBundledExercisesByTarget,
+    getBundledMuscles,
+    searchBundledExercises,
+} from '../src/lib/localExerciseDb';
 
 const BACKEND_URL = getBackendUrl();
 
@@ -35,10 +41,18 @@ const searchExercisesFromDB = async (query: string, limit: number = 8) => {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ query, limit })
         });
-        const data = await response.json();
-        return data.exercises || [];
+        if (response.ok) {
+            const data = await response.json();
+            return data.exercises || [];
+        }
     } catch (error) {
         console.error('Exercise search error:', error);
+    }
+
+    try {
+        return await searchBundledExercises(query, limit);
+    } catch (error) {
+        console.error('Bundled exercise search error:', error);
         return [];
     }
 };
@@ -294,10 +308,20 @@ const FitnessPanel: React.FC = () => {
                         return;
                     }
                 }
-                setUsingFallback(true);
             } catch {
-                setUsingFallback(true);
+                // Fall through to bundled data.
             }
+
+            try {
+                const bundledTargets = await getBundledMuscles();
+                if (bundledTargets.length > 0) {
+                    setTargets(bundledTargets);
+                }
+            } catch (error) {
+                console.error('Bundled muscles fallback error:', error);
+            }
+
+            setUsingFallback(true);
         })();
     }, []);
 
@@ -310,12 +334,44 @@ const FitnessPanel: React.FC = () => {
                     const data = await res.json();
                     if (Array.isArray(data) && data.length > 0) {
                         setEquipmentList(data);
+                        return;
                     }
                 }
             } catch {
-                // Fallback already set
+                // Fall through to bundled data.
+            }
+
+            try {
+                const bundledEquipment = await getBundledEquipment();
+                if (bundledEquipment.length > 0) {
+                    setEquipmentList(bundledEquipment);
+                }
+            } catch (error) {
+                console.error('Bundled equipment fallback error:', error);
             }
         })();
+    }, []);
+
+    const useFallbackExercises = useCallback(async (target: string, equip: string) => {
+        try {
+            const bundledExercises = await getBundledExercisesByTarget(target, equip);
+            if (bundledExercises.length > 0) {
+                setUsingFallback(true);
+                setExercises(bundledExercises);
+                setLoading(false);
+                return;
+            }
+        } catch (error) {
+            console.error('Bundled exercises fallback error:', error);
+        }
+
+        setUsingFallback(true);
+        let fallback = FALLBACK_EXERCISES[target] || [];
+        if (equip) {
+            fallback = fallback.filter(e => e.equipment === equip);
+        }
+        setExercises(fallback);
+        setLoading(false);
     }, []);
 
     const fetchExercises = useCallback(async (target: string, equip: string) => {
@@ -348,21 +404,12 @@ const FitnessPanel: React.FC = () => {
                     return;
                 }
             }
-            useFallbackExercises(target, equip);
-        } catch {
-            useFallbackExercises(target, equip);
-        }
-    }, []);
 
-    const useFallbackExercises = (target: string, equip: string) => {
-        setUsingFallback(true);
-        let fallback = FALLBACK_EXERCISES[target] || [];
-        if (equip) {
-            fallback = fallback.filter(e => e.equipment === equip);
+            await useFallbackExercises(target, equip);
+        } catch {
+            await useFallbackExercises(target, equip);
         }
-        setExercises(fallback);
-        setLoading(false);
-    };
+    }, [useFallbackExercises]);
 
     const handleTargetClick = (target: string) => {
         if (selectedTarget === target) {
@@ -743,24 +790,24 @@ const FitnessPanel: React.FC = () => {
                                     {planHistory.map((entry) => {
                                         const date = new Date(entry.date);
                                         const dateStr = date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
-                                        const timeStr = date.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+                                        const timeStr = date.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true }).toUpperCase();
                                         return (
                                             <div key={entry.id} className="bg-white dark:bg-[#1a2240] rounded-2xl border border-slate-100 dark:border-slate-700/50 shadow-sm overflow-hidden">
-                                                <div className="px-4 py-3 flex items-center gap-3">
+                                                <div className="grid grid-cols-[auto,1fr,auto] items-start gap-3 px-4 py-3 sm:items-center">
                                                     <div className="w-9 h-9 bg-amber-50 dark:bg-amber-900/20 rounded-xl flex items-center justify-center shrink-0">
                                                         <Dumbbell className="w-4 h-4 text-amber-500" />
                                                     </div>
-                                                    <div className="flex-1 min-w-0" onClick={() => loadFromHistory(entry)}>
-                                                        <p className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate cursor-pointer hover:text-teal-600">{entry.goal}</p>
-                                                        <div className="flex items-center gap-2 mt-0.5">
-                                                            <span className="text-[10px] text-slate-400">{dateStr} {timeStr}</span>
-                                                            <span className="text-[10px] bg-teal-50 dark:bg-teal-900/20 text-teal-600 dark:text-teal-400 px-1.5 py-0.5 rounded font-semibold">{entry.days} days</span>
+                                                    <div className="min-w-0 cursor-pointer" onClick={() => loadFromHistory(entry)}>
+                                                        <p className="truncate text-xs font-bold leading-snug text-slate-700 hover:text-teal-600 dark:text-slate-200">{entry.goal}</p>
+                                                        <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+                                                            <span className="whitespace-nowrap text-[10px] text-slate-400">{dateStr} • {timeStr}</span>
+                                                            <span className="shrink-0 whitespace-nowrap rounded bg-teal-50 px-2 py-0.5 text-[10px] font-semibold text-teal-600 dark:bg-teal-900/20 dark:text-teal-400">{entry.days} days</span>
                                                             {entry.chat.length > 0 && (
-                                                                <span className="text-[10px] text-slate-400">{entry.chat.length} msgs</span>
+                                                                <span className="shrink-0 whitespace-nowrap text-[10px] text-slate-400">{entry.chat.length} msgs</span>
                                                             )}
                                                         </div>
                                                     </div>
-                                                    <div className="flex items-center gap-1 shrink-0">
+                                                    <div className="flex items-center gap-1 self-center shrink-0">
                                                         <button
                                                             onClick={() => loadFromHistory(entry)}
                                                             className="p-2 rounded-lg bg-teal-50 dark:bg-teal-900/20 text-teal-600 dark:text-teal-400 hover:bg-teal-100 transition-colors"
@@ -1213,7 +1260,7 @@ const FitnessPanel: React.FC = () => {
 
                                             {chatMessages.map((msg, i) => (
                                                 <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2 duration-300`}>
-                                                    <div className={`max-w-[88%] p-4 text-[13px] shadow-sm leading-relaxed ${msg.role === 'user'
+                                                    <div className={`${msg.planData ? 'max-w-[96%] w-full' : 'max-w-[88%]'} p-4 text-[13px] shadow-sm leading-relaxed ${msg.role === 'user'
                                                         ? 'bg-gradient-to-br from-teal-500 to-teal-600 text-white rounded-2xl rounded-tr-sm'
                                                         : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-100 dark:border-slate-700 rounded-2xl rounded-tl-sm'
                                                         }`}>
@@ -1230,6 +1277,93 @@ const FitnessPanel: React.FC = () => {
                                                             <RichMessageRenderer content={msg.content} />
                                                         ) : (
                                                             <span className="text-[13px] leading-relaxed break-words">{msg.content}</span>
+                                                        )}
+
+                                                        {msg.role === 'assistant' && msg.planData?.days?.some(day => day.exercises?.length > 0) && (
+                                                            <div className="mt-4 space-y-3">
+                                                                {msg.planData.days.map((day, dIdx) => (
+                                                                    <div key={`chat-day-${i}-${dIdx}`} className="space-y-2.5">
+                                                                        <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-teal-600 dark:text-teal-400">
+                                                                            <Dumbbell className="w-3.5 h-3.5" />
+                                                                            {day.day_name}
+                                                                        </div>
+                                                                        {day.exercises.map((ex, eIdx) => {
+                                                                            const uniqueId = `chat-${i}-${dIdx}-${eIdx}`;
+                                                                            const isExpanded = expandedExercise === uniqueId;
+
+                                                                            return (
+                                                                                <div
+                                                                                    key={uniqueId}
+                                                                                    className={`rounded-2xl border bg-slate-50 dark:bg-slate-900/40 transition-all overflow-hidden ${isExpanded ? 'border-teal-300 dark:border-teal-700 shadow-md' : 'border-slate-200 dark:border-slate-700'}`}
+                                                                                >
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        onClick={() => setExpandedExercise(isExpanded ? null : uniqueId)}
+                                                                                        className="w-full p-3 text-left flex items-center gap-3"
+                                                                                    >
+                                                                                        <div className="w-14 h-14 rounded-xl overflow-hidden shrink-0 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 flex items-center justify-center">
+                                                                                            {ex.gifUrl ? (
+                                                                                                <img src={ex.gifUrl} alt={ex.name} className="w-full h-full object-cover" loading="lazy" />
+                                                                                            ) : (
+                                                                                                <Dumbbell className="w-5 h-5 text-slate-300" />
+                                                                                            )}
+                                                                                        </div>
+                                                                                        <div className="flex-1 min-w-0">
+                                                                                            <p className="text-[13px] font-bold text-slate-800 dark:text-slate-100 leading-snug">{ex.name}</p>
+                                                                                            <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                                                                                                <span className="px-2 py-0.5 rounded-md bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[9px] font-bold uppercase text-slate-500 dark:text-slate-400">
+                                                                                                    {ex.equipment || 'Bodyweight'}
+                                                                                                </span>
+                                                                                                <span className="px-2 py-0.5 rounded-md bg-teal-50 dark:bg-teal-900/30 text-[9px] font-bold uppercase text-teal-600 dark:text-teal-400">
+                                                                                                    {ex.target || 'Exercise'}
+                                                                                                </span>
+                                                                                                {ex.sets && ex.reps && (
+                                                                                                    <span className="px-2 py-0.5 rounded-md bg-orange-50 dark:bg-orange-900/20 text-[9px] font-bold text-orange-500 dark:text-orange-400">
+                                                                                                        {ex.sets} x {ex.reps}
+                                                                                                    </span>
+                                                                                                )}
+                                                                                            </div>
+                                                                                        </div>
+                                                                                        {isExpanded ? (
+                                                                                            <ChevronUp className="w-4 h-4 text-teal-500 shrink-0" />
+                                                                                        ) : (
+                                                                                            <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" />
+                                                                                        )}
+                                                                                    </button>
+
+                                                                                    {isExpanded && (
+                                                                                        <div className="px-3 pb-3 space-y-3">
+                                                                                            {ex.gifUrl && (
+                                                                                                <div className="rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+                                                                                                    <img src={ex.gifUrl} alt={`${ex.name} demonstration`} className="w-full h-auto object-contain" loading="lazy" />
+                                                                                                </div>
+                                                                                            )}
+                                                                                            <div className="rounded-xl bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 p-3">
+                                                                                                <h5 className="font-bold text-slate-800 dark:text-slate-100 mb-2 flex items-center gap-1.5 text-[11px]">
+                                                                                                    <FileText className="w-3.5 h-3.5 text-teal-500" />
+                                                                                                    Instructions
+                                                                                                </h5>
+                                                                                                {ex.instructions && ex.instructions.length > 0 ? (
+                                                                                                    <ol className="space-y-1.5">
+                                                                                                        {ex.instructions.map((inst, instIdx) => (
+                                                                                                            <li key={instIdx} className="flex gap-2 text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed">
+                                                                                                                <span className="font-bold text-teal-500 shrink-0">{instIdx + 1}.</span>
+                                                                                                                <span>{inst}</span>
+                                                                                                            </li>
+                                                                                                        ))}
+                                                                                                    </ol>
+                                                                                                ) : (
+                                                                                                    <p className="text-[11px] italic text-slate-400">Detailed instructions are not available for this exercise.</p>
+                                                                                                )}
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    )}
+                                                                                </div>
+                                                                            );
+                                                                        })}
+                                                                    </div>
+                                                                ))}
+                                                            </div>
                                                         )}
 
                                                         {msg.role === 'assistant' && i === latestAssistantMessageIndex && msg.suggestedQuestionCards && msg.suggestedQuestionCards.length > 0 && (

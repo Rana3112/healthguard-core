@@ -1180,13 +1180,11 @@ def coach_chat():
 
 @app.route("/api/transcribe", methods=["POST"])
 def transcribe_audio():
-    """Transcribe audio using NVIDIA's Whisper Large V3 API."""
-    nvidia_whisper_key = os.getenv("NVIDIA_WHISPER_API_KEY") or os.getenv(
-        "NVIDIA_API_KEY"
-    )
+    """Transcribe uploaded audio using Groq Whisper."""
+    groq_transcription_key = os.getenv("GROQ_API_KEY") or os.getenv("VITE_GROQ_API_KEY")
 
-    if not nvidia_whisper_key:
-        return jsonify({"error": "NVIDIA_WHISPER_API_KEY or NVIDIA_API_KEY not configured"}), 500
+    if not groq_transcription_key:
+        return jsonify({"error": "GROQ_API_KEY is not configured for transcription"}), 500
 
     if "audio" not in request.files:
         return jsonify({"error": "No audio file provided"}), 400
@@ -1196,27 +1194,32 @@ def transcribe_audio():
     if audio_file.filename == "":
         return jsonify({"error": "No selected file"}), 400
 
+    audio_bytes = audio_file.read()
+    if not audio_bytes:
+        return jsonify({"error": "Uploaded audio file is empty"}), 400
+
     try:
-        import requests as req
+        url = "https://api.groq.com/openai/v1/audio/transcriptions"
+        headers = {"Authorization": f"Bearer {groq_transcription_key}"}
 
-        # NVIDIA NeMo Whisper API endpoint
-        url = "https://integrate.api.nvidia.com/v1/audio/transcriptions"
-        headers = {"Authorization": f"Bearer {nvidia_whisper_key}"}
-
-        # NVIDIA expects a file tuple: (filename, file_object, content_type)
-        files = {"file": (audio_file.filename, audio_file.read(), audio_file.mimetype)}
+        files = {
+            "file": (
+                audio_file.filename,
+                audio_bytes,
+                audio_file.mimetype or "application/octet-stream",
+            )
+        }
         data = {
-            "model": "nvidia/whisper-large-v3",
+            "model": "whisper-large-v3-turbo",
             "response_format": "json",
-            "language": "en",  # Can be made configurable
             "temperature": 0.0,
         }
 
-        print(f"[Transcribe] Sending audio to NVIDIA Whisper API...")
+        print("[Transcribe] Sending audio to Groq Whisper API...")
         resp = req.post(url, headers=headers, files=files, data=data, timeout=60)
 
         if resp.status_code != 200:
-            print(f"[Transcribe] Error from NVIDIA: {resp.text}")
+            print(f"[Transcribe] Error from Groq: {resp.text}")
             return jsonify({"error": f"Transcription Error: {resp.text}"}), 500
 
         transcription_data = resp.json()

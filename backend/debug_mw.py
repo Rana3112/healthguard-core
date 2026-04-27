@@ -1,8 +1,12 @@
 import requests
 import json
+import os
 
-KEY = "865a20200amshcc026b276b939a5p1f7177jsn597e7a6962bb"
+KEY = os.getenv("RAPIDAPI_KEY")
 HOST = "musclewiki-api.p.rapidapi.com"
+
+if not KEY:
+    raise SystemExit("RAPIDAPI_KEY is required to debug MuscleWiki API access.")
 
 headers = {
     "x-rapidapi-key": KEY,
@@ -16,7 +20,7 @@ endpoints = [
     ("/exercises", {"name": "Bench Press"}),
 ]
 
-print(f"Testing key: {KEY[:5]}...")
+print("Testing RapidAPI key from environment...")
 
 for path, params in endpoints:
     url = f"https://{HOST}{path}"

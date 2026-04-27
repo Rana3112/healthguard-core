@@ -10,6 +10,11 @@ const config: CapacitorConfig = {
     android: {
         backgroundColor: '#f9fafb',
         allowMixedContent: true,
+    },
+    plugins: {
+        FirebaseAuthentication: {
+            providers: ['google.com'],
+        },
     }
 };
 

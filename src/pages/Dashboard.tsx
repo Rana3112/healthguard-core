@@ -5,6 +5,11 @@ import TextChatInterface from '../../components/TextChatInterface';
 import FitnessPanel from '../../components/FitnessPanel';
 import HealthDashboard from '../../components/HealthDashboard';
 import DrugInteractionChecker from '../../components/DrugInteractionChecker';
+import MedicineCabinetPanel from '../../components/MedicineCabinetPanel';
+import HealthTimelinePanel from '../../components/HealthTimelinePanel';
+import FamilyCaregiverPanel from '../../components/FamilyCaregiverPanel';
+import ReportScannerPanel from '../../components/ReportScannerPanel';
+import VisitPrepPanel from '../../components/VisitPrepPanel';
 import AgentActivityMonitor from '../../components/AgentActivityMonitor';
 import Sidebar from '../../components/Sidebar';
 import SettingsPanel from '../../components/SettingsPanel';
@@ -14,7 +19,7 @@ import PermissionPrompt from '../../components/PermissionPrompt';
 import { applyTheme, getStoredTheme } from '../../components/SettingsPanel';
 import { useChatHistory } from '../../hooks/useChatHistory';
 import { useNavigate } from 'react-router-dom';
-import { Menu, Zap, Sparkles, BrainCircuit, Eye, Settings, Bell, Bot, LogOut, Dumbbell, Heart, Pill, Lock, ShieldCheck, ArrowLeft } from 'lucide-react';
+import { Menu, Zap, Sparkles, BrainCircuit, Eye, Settings, Bell, Bot, LogOut, Dumbbell, Heart, Pill, Lock, ShieldCheck, ArrowLeft, History, Users, FileSearch, Stethoscope } from 'lucide-react';
 import { ModelMode } from '../../services/geminiService';
 import { useAuth } from '../context/AuthContext';
 import { getBackendUrl } from '../lib/backendUrl';
@@ -103,7 +108,7 @@ const Dashboard: React.FC = () => {
     const [activeTab, setActiveTab] = useState<'chat' | 'live'>('chat');
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [activeRightSidebar, setActiveRightSidebar] = useState(false);
-    const [rightPanel, setRightPanel] = useState<'fitness' | 'health' | 'drugs'>('fitness');
+    const [rightPanel, setRightPanel] = useState<'fitness' | 'health' | 'cabinet' | 'timeline' | 'family' | 'reports' | 'visit' | 'drugs'>('fitness');
     const [modelMode, setModelMode] = useState<ModelMode>('standard');
     const [showSettings, setShowSettings] = useState(false);
     const [showNotifications, setShowNotifications] = useState(false);
@@ -348,10 +353,10 @@ const Dashboard: React.FC = () => {
                         <ArrowLeft className="w-4 h-4" />
                         <span className="text-xs font-semibold">Back to Chat</span>
                     </button>
-                    <div className="flex bg-slate-100 dark:bg-slate-800/60 rounded-full p-1">
+                    <div className="flex gap-1 overflow-x-auto bg-slate-100 dark:bg-slate-800/60 rounded-full p-1">
                         <button
                             onClick={() => setRightPanel('fitness')}
-                            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-full text-xs font-bold transition-all duration-200 ${rightPanel === 'fitness'
+                            className={`min-w-[88px] flex-1 flex items-center justify-center gap-1.5 py-2 rounded-full text-xs font-bold transition-all duration-200 ${rightPanel === 'fitness'
                                 ? 'bg-gradient-to-r from-violet-500 to-purple-600 text-white shadow-md shadow-purple-500/20'
                                 : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'}`}
                         >
@@ -359,25 +364,81 @@ const Dashboard: React.FC = () => {
                         </button>
                         <button
                             onClick={() => setRightPanel('health')}
-                            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-full text-xs font-bold transition-all duration-200 ${rightPanel === 'health'
+                            className={`min-w-[88px] flex-1 flex items-center justify-center gap-1.5 py-2 rounded-full text-xs font-bold transition-all duration-200 ${rightPanel === 'health'
                                 ? 'bg-gradient-to-r from-violet-500 to-purple-600 text-white shadow-md shadow-purple-500/20'
                                 : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'}`}
                         >
                             <Heart className="w-3.5 h-3.5" /> Health
                         </button>
                         <button
-                            onClick={() => setRightPanel('drugs')}
-                            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-full text-xs font-bold transition-all duration-200 ${rightPanel === 'drugs'
+                            onClick={() => setRightPanel('cabinet')}
+                            className={`min-w-[88px] flex-1 flex items-center justify-center gap-1.5 py-2 rounded-full text-xs font-bold transition-all duration-200 ${rightPanel === 'cabinet'
                                 ? 'bg-gradient-to-r from-violet-500 to-purple-600 text-white shadow-md shadow-purple-500/20'
                                 : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'}`}
                         >
-                            <Pill className="w-3.5 h-3.5" /> Interactions
+                            <Pill className="w-3.5 h-3.5" /> Cabinet
+                        </button>
+                        <button
+                            onClick={() => setRightPanel('timeline')}
+                            className={`min-w-[88px] flex-1 flex items-center justify-center gap-1.5 py-2 rounded-full text-xs font-bold transition-all duration-200 ${rightPanel === 'timeline'
+                                ? 'bg-gradient-to-r from-violet-500 to-purple-600 text-white shadow-md shadow-purple-500/20'
+                                : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'}`}
+                        >
+                            <History className="w-3.5 h-3.5" /> Timeline
+                        </button>
+                        <button
+                            onClick={() => setRightPanel('drugs')}
+                            className={`min-w-[88px] flex-1 flex items-center justify-center gap-1.5 py-2 rounded-full text-xs font-bold transition-all duration-200 ${rightPanel === 'drugs'
+                                ? 'bg-gradient-to-r from-violet-500 to-purple-600 text-white shadow-md shadow-purple-500/20'
+                                : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'}`}
+                        >
+                            <ShieldCheck className="w-3.5 h-3.5" /> Safety
+                        </button>
+                        <button
+                            onClick={() => setRightPanel('family')}
+                            className={`min-w-[88px] flex-1 flex items-center justify-center gap-1.5 py-2 rounded-full text-xs font-bold transition-all duration-200 ${rightPanel === 'family'
+                                ? 'bg-gradient-to-r from-violet-500 to-purple-600 text-white shadow-md shadow-purple-500/20'
+                                : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'}`}
+                        >
+                            <Users className="w-3.5 h-3.5" /> Family
+                        </button>
+                        <button
+                            onClick={() => setRightPanel('reports')}
+                            className={`min-w-[88px] flex-1 flex items-center justify-center gap-1.5 py-2 rounded-full text-xs font-bold transition-all duration-200 ${rightPanel === 'reports'
+                                ? 'bg-gradient-to-r from-violet-500 to-purple-600 text-white shadow-md shadow-purple-500/20'
+                                : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'}`}
+                        >
+                            <FileSearch className="w-3.5 h-3.5" /> Reports
+                        </button>
+                        <button
+                            onClick={() => setRightPanel('visit')}
+                            className={`min-w-[88px] flex-1 flex items-center justify-center gap-1.5 py-2 rounded-full text-xs font-bold transition-all duration-200 ${rightPanel === 'visit'
+                                ? 'bg-gradient-to-r from-violet-500 to-purple-600 text-white shadow-md shadow-purple-500/20'
+                                : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'}`}
+                        >
+                            <Stethoscope className="w-3.5 h-3.5" /> Visit
                         </button>
                     </div>
                 </div>
                 {/* Panel Content */}
                 <div className="flex-1 overflow-hidden relative min-h-0">
-                    {rightPanel === 'fitness' ? <FitnessPanel /> : rightPanel === 'health' ? <HealthDashboard /> : <DrugInteractionChecker />}
+                    {rightPanel === 'fitness' ? (
+                        <FitnessPanel />
+                    ) : rightPanel === 'health' ? (
+                        <HealthDashboard />
+                    ) : rightPanel === 'cabinet' ? (
+                        <MedicineCabinetPanel onOpenInteractions={() => setRightPanel('drugs')} />
+                    ) : rightPanel === 'timeline' ? (
+                        <HealthTimelinePanel />
+                    ) : rightPanel === 'family' ? (
+                        <FamilyCaregiverPanel />
+                    ) : rightPanel === 'reports' ? (
+                        <ReportScannerPanel />
+                    ) : rightPanel === 'visit' ? (
+                        <VisitPrepPanel />
+                    ) : (
+                        <DrugInteractionChecker />
+                    )}
                 </div>
             </aside>
 

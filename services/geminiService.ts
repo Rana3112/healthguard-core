@@ -173,6 +173,8 @@ export const sendMessageToAgent = async (
     - Use Markdown bolding (**text**) or highlighting if applicable for critical keywords, warnings, or medication names.
     - Always include a clear "Do's and Don'ts" section for precautions and instructions, formatted as bullet points.
     - Keep the visual hierarchy clean with appropriate headers (###).
+    - Include ### Care Flow, ### Simple Explanation, ### Do First, and ### Seek Help If sections for health explanations.
+    - Keep bullets short because the Android chat renders them as visual mobile cards.
     
     At the very end of your response, provide 4-5 suggested follow-up actions on separate lines, each prefixed with ">> ".`;
 
@@ -458,6 +460,7 @@ export const sendMessageToAgent = async (
   - Use \`### \` for section headings.
   - Use \`- \` for bullet points.
   - Use \`| Column 1 | Column 2 |\` pipe syntax for ALL tabular data. Do NOT use spaces/tabs for tables.
+  - For health explanations, include \`### Care Flow\`, \`### Simple Explanation\`, \`### Do First\`, and \`### Seek Help If\` sections with short mobile-friendly bullets.
   
   OUTPUT FORMAT:
   - Provide your response in rich Markdown text.

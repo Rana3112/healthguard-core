@@ -29,7 +29,7 @@ const LandingPage: React.FC = () => {
 
     return (
         <div
-            className="h-screen overflow-y-auto overflow-x-hidden snap-y snap-mandatory font-sans text-slate-900 dark:text-slate-100 bg-slate-50 dark:bg-[#0f172a] transition-colors duration-300 scroll-smooth"
+            className="h-dvh min-h-dvh overflow-y-auto overflow-x-hidden md:snap-y md:snap-mandatory font-sans text-slate-900 dark:text-slate-100 bg-slate-50 dark:bg-[#0f172a] transition-colors duration-300 scroll-smooth"
             onScroll={(e) => setScrolled(e.currentTarget.scrollTop > 20)}
         >
             {/* Navbar (From Page 1/2) */}
@@ -75,7 +75,7 @@ const LandingPage: React.FC = () => {
             </nav>
 
             {/* Hero Section (From Page 1) */}
-            <section className="relative min-h-screen snap-start flex flex-col justify-center pt-20 pb-10 overflow-hidden">
+            <section className="relative min-h-dvh md:snap-start flex flex-col justify-center pt-20 pb-10 overflow-hidden">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
                     <div className="grid lg:grid-cols-2 gap-12 items-center">
                         <div className="space-y-8 animate-fade-in">
@@ -174,7 +174,7 @@ const LandingPage: React.FC = () => {
             </section>
 
             {/* How It Works (From Page 2) */}
-            <section id="how-it-works" className="min-h-screen snap-start flex flex-col justify-center py-20 bg-white dark:bg-[#0f172a]/50">
+            <section id="how-it-works" className="min-h-dvh md:snap-start flex flex-col justify-center py-20 bg-white dark:bg-[#0f172a]/50">
                 <FadeInSection>
                     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                         <div className="text-center mb-16">
@@ -232,7 +232,7 @@ const LandingPage: React.FC = () => {
             </section>
 
             {/* Features Grid (Consolidated) */}
-            <section id="features" className="min-h-screen snap-start flex flex-col justify-center py-24 bg-slate-50 dark:bg-[#0f172a]">
+            <section id="features" className="min-h-dvh md:snap-start flex flex-col justify-center py-24 bg-slate-50 dark:bg-[#0f172a]">
                 <FadeInSection delay="100ms">
                     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                         <div className="text-center mb-16 space-y-4">
@@ -264,7 +264,7 @@ const LandingPage: React.FC = () => {
             </section>
 
             {/* Fitness Hub Section (Page 2) */}
-            <section id="fitness" className="min-h-screen snap-start flex flex-col justify-center py-24 bg-white dark:bg-[#0f172a]/50 border-t border-slate-100 dark:border-slate-800">
+            <section id="fitness" className="min-h-dvh md:snap-start flex flex-col justify-center py-24 bg-white dark:bg-[#0f172a]/50 border-t border-slate-100 dark:border-slate-800">
                 <FadeInSection delay="100ms">
                     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                         <div className="flex flex-col lg:flex-row gap-16 items-center">
@@ -336,7 +336,7 @@ const LandingPage: React.FC = () => {
             </section>
 
             {/* Pricing (Page 3) */}
-            <section id="pricing" className="min-h-screen snap-start flex flex-col justify-center py-20 px-6 max-w-7xl mx-auto w-full">
+            <section id="pricing" className="min-h-dvh md:snap-start flex flex-col justify-center py-20 px-6 max-w-7xl mx-auto w-full">
                 <FadeInSection delay="100ms">
                     <div className="text-center mb-16">
                         <h2 className="text-3xl md:text-4xl font-bold mb-4">Choose Your Path to Health</h2>
@@ -416,7 +416,7 @@ const LandingPage: React.FC = () => {
             </section>
 
             {/* Testimonials (Page 3) */}
-            <section className="min-h-screen snap-start flex flex-col justify-center py-20 bg-slate-50 dark:bg-[#0f172a]/50 w-full">
+            <section className="min-h-dvh md:snap-start flex flex-col justify-center py-20 bg-slate-50 dark:bg-[#0f172a]/50 w-full">
                 <FadeInSection delay="100ms">
                     <div className="max-w-7xl mx-auto px-6">
                         <h2 className="text-2xl font-bold text-center mb-12">Loved by Users Across India</h2>
@@ -457,7 +457,7 @@ const LandingPage: React.FC = () => {
             </section>
 
             {/* Footer (Top Section - Page 3) */}
-            <footer className="snap-start bg-slate-900 flex flex-col justify-center min-h-[50vh] text-slate-300 pt-16 pb-8 border-t border-slate-800 w-full">
+            <footer className="md:snap-start bg-slate-900 flex flex-col justify-center min-h-[50vh] text-slate-300 pt-16 pb-8 border-t border-slate-800 w-full">
                 <div className="max-w-7xl mx-auto px-6 w-full">
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12 mb-16">
                         <div className="space-y-6">

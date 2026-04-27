@@ -1,0 +1,55 @@
+{
+  "project_info": {
+    "project_number": "397043457667",
+    "project_id": "healthguard-ai-94285",
+    "storage_bucket": "healthguard-ai-94285.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:397043457667:android:64a6e1b6210a9054fec5b6",
+        "android_client_info": {
+          "package_name": "com.healthguard.ai"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "397043457667-74qieo4tvsanhur00h2qd74nfv324i7q.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.healthguard.ai",
+            "certificate_hash": "da0c58128dd734f5cc8a8f0dc4f1b573efbb00bc"
+          }
+        },
+        {
+          "client_id": "397043457667-tbhecrpvpr16c12abe3n5semcjdt7o87.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.healthguard.ai",
+            "certificate_hash": "176fef9d5c8583eb03612f666808591814d6fcb9"
+          }
+        },
+        {
+          "client_id": "397043457667-rsupbhn0c8n9jdkgqnooliesuahsocfs.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDwZBU5fKT6fn2btdmN4D-UDkROCab2cfo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "397043457667-rsupbhn0c8n9jdkgqnooliesuahsocfs.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

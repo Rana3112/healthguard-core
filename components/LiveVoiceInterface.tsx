@@ -3,6 +3,7 @@ import { GoogleGenAI, LiveServerMessage, Modality } from "@google/genai";
 import { floatTo16BitPCM, arrayBufferToBase64, base64ToArrayBuffer } from '../utils/audioUtils';
 import { Mic, MicOff, Volume2, Radio, Activity } from 'lucide-react';
 import { toolsDef } from '../services/geminiService';
+import { getGeminiApiKey } from '../src/lib/apiKeys';
 
 interface LiveVoiceInterfaceProps {
   onAgentAction: (action: any) => void;
@@ -25,11 +26,6 @@ const LiveVoiceInterface: React.FC<LiveVoiceInterfaceProps> = ({ onAgentAction }
 
   // Session
   const sessionRef = useRef<any>(null);
-
-  const getGeminiApiKey = () =>
-    (import.meta as any)?.env?.VITE_GEMINI_API_KEY ||
-    (import.meta as any)?.env?.API_KEY ||
-    (typeof process !== 'undefined' ? (process as any)?.env?.API_KEY : undefined);
 
   const connectToLiveAPI = async () => {
     const apiKey = getGeminiApiKey();

@@ -43,6 +43,22 @@ Download the latest release: [app-release.apk](releases/download/v1.0.0/app-rele
 
 ---
 
+## Current Android Build Updates
+
+This build includes the latest Android-first fixes and feature additions:
+
+- **Native Google Sign-In**: Android Google login now uses Capacitor Firebase Authentication with the native Google account picker, Firebase SHA fingerprints, and `google-services.json` support.
+- **Voice Input Fix**: The chat mic records supported mobile audio formats, sends audio to `/api/transcribe`, and falls back to Groq Whisper in-app if the backend transcription route fails.
+- **Improved Health Chat Output**: AI answers now render richer mobile-friendly Markdown with care-flow cards, simple explanations, do-first actions, and seek-help guidance.
+- **Smart Health Features**: Added Smart Medicine Cabinet, Health Memory Timeline, AI Visit Prep PDF, Report Scanner, Family/Caregiver mode, and offline local reminders.
+- **Fitness Hub Reliability**: Exercise search in generated plan/chat flows can render relevant local ExerciseDB results from the bundled exercise dataset.
+- **Reminder & Email Backend**: Reminder email support is wired for Resend on the backend. Use environment variables for all email/API credentials.
+- **Location Backend Ready**: Google Places support exists behind backend configuration, but billing-dependent Google Maps/Places features should remain disabled until billing is available.
+
+Sensitive files such as `.env`, `.env.local`, and `backend/.env` are intentionally ignored and must not be committed.
+
+---
+
 ## Tech Stack
 
 ### Frontend
@@ -149,6 +165,8 @@ Download the latest release: [app-release.apk](releases/download/v1.0.0/app-rele
 | **Chat History** | MongoDB for persistent chat storage |
 | **Stripe Integration** | Payment processing (removed for free version) |
 | **Twilio WhatsApp** | WhatsApp notification service |
+| **Resend Email** | Backend email delivery for reminder workflows |
+| **Groq Whisper** | Audio transcription for chat voice input |
 
 ### APIs & External Services
 
@@ -161,7 +179,7 @@ Download the latest release: [app-release.apk](releases/download/v1.0.0/app-rele
 | **Firebase** | Authentication (Google Sign-In) |
 | **Google Maps** | Nearby pharmacy location |
 | **Twilio** | WhatsApp notifications |
-| **NVIDIA Whisper** | Voice transcription (web only) |
+| **Groq Whisper** | Voice transcription |
 | **MongoDB Atlas** | Cloud database for chat storage |
 
 ### Maps & Location

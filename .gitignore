@@ -14,6 +14,8 @@ dist-ssr
 *.tsbuildinfo
 .ruff_cache/
 .gradle/
+.gradle-user-home/
+.android-user-home/
 android/.gradle-user-home/
 android/.android-user-home/
 
